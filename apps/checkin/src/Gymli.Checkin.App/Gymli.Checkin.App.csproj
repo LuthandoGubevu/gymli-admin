@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Gymli.Checkin</AssemblyName>
+    <RootNamespace>Gymli.Checkin.App</RootNamespace>
+    <Version>1.0.0</Version>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationIcon>Assets/gymli.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/**" />
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Headless" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.22" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Gymli.Checkin.Core/Gymli.Checkin.Core.csproj" />
+    <ProjectReference Include="../Gymli.Checkin.Hardware.Simulated/Gymli.Checkin.Hardware.Simulated.csproj" />
+    <ProjectReference Include="../Gymli.Checkin.Hardware.DigitalPersona/Gymli.Checkin.Hardware.DigitalPersona.csproj" />
+    <ProjectReference Include="../Gymli.Checkin.Hardware.UsbRelay/Gymli.Checkin.Hardware.UsbRelay.csproj" />
+  </ItemGroup>
+</Project>

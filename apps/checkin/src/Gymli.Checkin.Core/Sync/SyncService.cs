@@ -26,7 +26,8 @@ public sealed class SyncService
 
     public DateTimeOffset LastSuccess { get; private set; } = DateTimeOffset.MinValue;
     public string? LastError { get; private set; }
-    public bool Online => DateTimeOffset.UtcNow - LastSuccess < TimeSpan.FromSeconds(Math.Max(15, _settings.SyncSeconds * 4));
+    /// <summary>Online = the last sync worked and was recent. One failed sync is enough to show "Offline".</summary>
+    public bool Online => LastError is null && DateTimeOffset.UtcNow - LastSuccess < TimeSpan.FromSeconds(Math.Max(15, _settings.SyncSeconds * 4));
     public event Action? StatusChanged;
     public event Action<EnrolRequest>? EnrolRequested;
 

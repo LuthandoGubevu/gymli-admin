@@ -20,6 +20,9 @@ public sealed class FirestoreClient : IDisposable
 
     public string? Uid { get; private set; }
 
+    /// <summary>Test switch: behaves as if the internet were unplugged.</summary>
+    public bool SimulateOffline { get; set; }
+
     public FirestoreClient(CheckinSettings settings, HttpMessageHandler? handler = null)
     {
         _s = settings;
@@ -36,6 +39,7 @@ public sealed class FirestoreClient : IDisposable
 
     private async Task<string> TokenAsync(CancellationToken ct)
     {
+        if (SimulateOffline) throw new HttpRequestException("No internet connection (simulated)");
         await _authGate.WaitAsync(ct);
         try
         {

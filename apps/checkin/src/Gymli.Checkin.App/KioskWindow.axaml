@@ -1,0 +1,147 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Gymli.Checkin.App.KioskWindow"
+        Title="Gymli Check-in" Background="{StaticResource Ink}"
+        Width="1440" Height="900" FontFamily="{StaticResource FontText}" Foreground="{StaticResource Ink}">
+  <Window.Styles>
+    <!-- Lucide icons: 24×24 canvas inside a Viewbox, 2px stroke like the web app -->
+    <Style Selector="Path.lucide">
+      <Setter Property="StrokeThickness" Value="2" />
+      <Setter Property="StrokeLineCap" Value="Round" />
+      <Setter Property="StrokeJoin" Value="Round" />
+    </Style>
+    <Style Selector="Border.pill">
+      <Setter Property="Height" Value="48" />
+      <Setter Property="Padding" Value="20,0" />
+      <Setter Property="CornerRadius" Value="999" />
+    </Style>
+    <Style Selector="Button.sim">
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="FontFamily" Value="{StaticResource FontSemibold}" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+    <!-- Simulation panel: only in simulation mode (CLAUDE.md §5). Toggle with F2. -->
+    <Border x:Name="SimPanel" DockPanel.Dock="Right" Width="340" Background="{StaticResource Rail}" Padding="16" IsVisible="False">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="10">
+          <TextBlock Text="Simulation" Foreground="White" FontFamily="{StaticResource FontBold}" FontSize="28" />
+          <TextBlock Text="No reader or relay attached. Pick a member to place their finger." Foreground="{StaticResource Faint}" FontSize="13" TextWrapping="Wrap" />
+          <TextBox x:Name="SimSearch" Watermark="Search name or GY-number" CornerRadius="999" />
+          <WrapPanel>
+            <Button x:Name="UnknownFinger" Classes="sim" Content="Unknown finger" Margin="0,0,6,6" />
+            <Button x:Name="ReaderToggle" Classes="sim" Content="Unplug reader" Margin="0,0,6,6" />
+          </WrapPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Clock" Foreground="{StaticResource Faint}" VerticalAlignment="Center" FontSize="13" />
+            <Button x:Name="ClockMinus" Classes="sim" Content="−1 day" />
+            <Button x:Name="ClockPlus" Classes="sim" Content="+1 day" />
+            <Button x:Name="ClockReset" Classes="sim" Content="Now" />
+          </StackPanel>
+          <TextBlock x:Name="ClockText" Foreground="White" FontSize="13" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,10,0,0">
+          <TextBlock Text="Relay and sync" Foreground="{StaticResource Faint}" FontSize="13" />
+          <Border Background="{StaticResource RailChip}" CornerRadius="14" Padding="10" Height="170">
+            <ScrollViewer>
+              <TextBlock x:Name="SimLog" Foreground="White" FontFamily="Consolas,Menlo,monospace" FontSize="11" TextWrapping="Wrap" />
+            </ScrollViewer>
+          </Border>
+        </StackPanel>
+        <ListBox x:Name="SimMembers" Margin="0,10,0,0" Background="Transparent" CornerRadius="14" />
+      </DockPanel>
+    </Border>
+
+    <!-- The kiosk screen, drawn at the design's 1440×900 and scaled to the display -->
+    <Viewbox Stretch="Uniform">
+      <Grid x:Name="Screen" Width="1440" Height="900" ClipToBounds="True">
+        <Border x:Name="BgIdle" Background="{StaticResource AppGradient}" />
+        <Border x:Name="BgGlow" Background="{StaticResource IdleGlow}" />
+        <Border x:Name="BgResult" Background="{StaticResource Green}" IsVisible="False" />
+
+        <DockPanel Margin="56,44">
+          <!-- Header -->
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
+            <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+              <TextBlock FontFamily="{StaticResource FontHeavy}" FontSize="44" LetterSpacing="-1.3" VerticalAlignment="Bottom">
+                <Run Text="gymli" /><Run x:Name="LogoDot" Text="." Foreground="{StaticResource GreenMark}" />
+              </TextBlock>
+              <TextBlock x:Name="Place" Text="Reception · Turnstile 1" FontSize="16" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="0,0,0,9" />
+            </StackPanel>
+            <Border x:Name="StatusPill" Grid.Column="1" Classes="pill" Background="{StaticResource GlassKiosk}" BorderBrush="{StaticResource GlassEdge}" BorderThickness="1">
+              <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="{StaticResource GreenMark}" />
+                <Viewbox x:Name="StatusOfflineIcon" Width="18" Height="18" IsVisible="False">
+                  <Canvas Width="24" Height="24"><Path Classes="lucide" Stroke="{StaticResource Ink}" Data="{StaticResource IconWifiOff}" /></Canvas>
+                </Viewbox>
+                <TextBlock x:Name="StatusText" Text="Online · synced" FontFamily="{StaticResource FontSemibold}" FontSize="16" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Footer -->
+          <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto">
+            <StackPanel x:Name="ClockBlock" VerticalAlignment="Bottom">
+              <TextBlock x:Name="TimeText" Text="06:03" FontFamily="{StaticResource FontHeavy}" FontSize="56" LineHeight="50" />
+              <TextBlock x:Name="DateText" Text="Thu 1 Oct 2026" FontSize="16" Foreground="{StaticResource Muted}" Margin="0,6,0,0" />
+            </StackPanel>
+            <StackPanel x:Name="ArmBlock" Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+              <Border x:Name="ArmCircle" Width="48" Height="48" CornerRadius="999" Background="{StaticResource Ink}">
+                <Viewbox x:Name="ArmIconBox" Width="20" Height="20">
+                  <Canvas Width="24" Height="24"><Path x:Name="ArmIcon" Classes="lucide" Stroke="{StaticResource White}" Data="{StaticResource IconLock}" /></Canvas>
+                </Viewbox>
+              </Border>
+              <TextBlock x:Name="ArmText" Text="Arm locked" FontFamily="{StaticResource FontSemibold}" FontSize="18" VerticalAlignment="Center" />
+              <TextBlock x:Name="ArmHint" Text="· walk through now" FontSize="20" VerticalAlignment="Center" IsVisible="False" />
+            </StackPanel>
+          </Grid>
+
+          <Grid>
+            <!-- 05a Idle -->
+            <StackPanel x:Name="IdleView" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="40">
+              <Grid Width="420" Height="420" HorizontalAlignment="Center">
+                <Border CornerRadius="999" BorderBrush="{StaticResource Line6}" BorderThickness="1" />
+                <Border Width="340" Height="340" CornerRadius="999" BorderBrush="{StaticResource Line8}" BorderThickness="1" />
+                <!-- enrol progress ring -->
+                <Arc x:Name="EnrolRing" Width="276" Height="276" Stroke="{StaticResource Green}" StrokeThickness="14" StartAngle="-90" SweepAngle="0" IsVisible="False" />
+                <Border Width="260" Height="260" CornerRadius="999" Background="{StaticResource GlassOrb}" BorderBrush="{StaticResource White}" BorderThickness="1" BoxShadow="{StaticResource OrbShadow}">
+                  <Viewbox Width="136" Height="136">
+                    <Canvas Width="24" Height="24"><Path x:Name="OrbIcon" Classes="lucide" Stroke="{StaticResource Ink}" Data="{StaticResource IconFingerprint}" /></Canvas>
+                  </Viewbox>
+                </Border>
+              </Grid>
+              <StackPanel HorizontalAlignment="Center">
+                <TextBlock x:Name="IdleTitle" Text="Place your finger on the scanner" FontFamily="{StaticResource FontTitle}" FontSize="88" LetterSpacing="-1.7" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="1328" />
+                <TextBlock x:Name="IdleHint" Text="Hold still until the screen changes" FontSize="22" Foreground="{StaticResource Ink2}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                <StackPanel x:Name="EnrolDots" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,20,0,0" IsVisible="False" />
+              </StackPanel>
+            </StackPanel>
+
+            <!-- 05b / 05c Result -->
+            <StackPanel x:Name="ResultView" VerticalAlignment="Center" IsVisible="False">
+              <TextBlock x:Name="ResultWord" Text="WELCOME" FontFamily="{StaticResource FontBlack}" FontSize="340" LetterSpacing="-10" LineHeight="272" Margin="-8,0,0,0" />
+              <StackPanel Orientation="Horizontal" Spacing="24" Margin="0,40,0,0">
+                <Border x:Name="ResultAvatar" Width="96" Height="96" CornerRadius="999" Background="{StaticResource Ink}" VerticalAlignment="Center">
+                  <TextBlock x:Name="ResultInitials" Text="KT" FontFamily="{StaticResource FontBold}" FontSize="36" Foreground="{StaticResource Green}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock x:Name="ResultHeadline" Text="Keabetswe Tau" FontFamily="{StaticResource FontBold}" FontSize="72" LetterSpacing="-0.7" LineHeight="68" MaxWidth="1180" TextTrimming="CharacterEllipsis" />
+                  <Border Height="52" Padding="24,0" Margin="0,14,0,0" CornerRadius="999" Background="{StaticResource Ink}" HorizontalAlignment="Left">
+                    <TextBlock x:Name="ResultDetail" Text="Paid until 31 Oct · 30 days left" FontFamily="{StaticResource FontSemibold}" FontSize="24" Foreground="{StaticResource White}" VerticalAlignment="Center" />
+                  </Border>
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+        </DockPanel>
+
+        <!-- Relay pulse indicator (simulation) -->
+        <Border x:Name="PulseFlash" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,56,120" Padding="16,10" CornerRadius="999" Background="{StaticResource Ink}" IsVisible="False">
+          <TextBlock x:Name="PulseText" Foreground="{StaticResource Green}" FontFamily="{StaticResource FontStrong}" FontSize="16" Text="Relay pulse 500 ms" />
+        </Border>
+      </Grid>
+    </Viewbox>
+  </DockPanel>
+</Window>
