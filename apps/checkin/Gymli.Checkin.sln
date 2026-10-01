@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4877CD8A-1BDF-4DC5-AD78-4034AF0EDCBF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gymli.Checkin.Core", "src\Gymli.Checkin.Core\Gymli.Checkin.Core.csproj", "{FA8269D4-1675-4F37-8B99-D460FC34E27C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gymli.Checkin.Hardware.DigitalPersona", "src\Gymli.Checkin.Hardware.DigitalPersona\Gymli.Checkin.Hardware.DigitalPersona.csproj", "{B5424690-A399-40EE-80A2-1324CED31AF4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gymli.Checkin.Hardware.Simulated", "src\Gymli.Checkin.Hardware.Simulated\Gymli.Checkin.Hardware.Simulated.csproj", "{0659954D-BD34-4343-986E-36379C9AEA7B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gymli.Checkin.Hardware.UsbRelay", "src\Gymli.Checkin.Hardware.UsbRelay\Gymli.Checkin.Hardware.UsbRelay.csproj", "{A3AADF99-2499-4EE8-9E18-BC93C774B79E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{D4EBED12-71D7-4E7A-A72E-7499C8200C77}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gymli.Checkin.Tests", "tests\Gymli.Checkin.Tests\Gymli.Checkin.Tests.csproj", "{439C0FD0-9E54-493D-89CC-64A3373390B5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FA8269D4-1675-4F37-8B99-D460FC34E27C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA8269D4-1675-4F37-8B99-D460FC34E27C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA8269D4-1675-4F37-8B99-D460FC34E27C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA8269D4-1675-4F37-8B99-D460FC34E27C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B5424690-A399-40EE-80A2-1324CED31AF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B5424690-A399-40EE-80A2-1324CED31AF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B5424690-A399-40EE-80A2-1324CED31AF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B5424690-A399-40EE-80A2-1324CED31AF4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0659954D-BD34-4343-986E-36379C9AEA7B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0659954D-BD34-4343-986E-36379C9AEA7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0659954D-BD34-4343-986E-36379C9AEA7B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0659954D-BD34-4343-986E-36379C9AEA7B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3AADF99-2499-4EE8-9E18-BC93C774B79E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3AADF99-2499-4EE8-9E18-BC93C774B79E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3AADF99-2499-4EE8-9E18-BC93C774B79E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3AADF99-2499-4EE8-9E18-BC93C774B79E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{439C0FD0-9E54-493D-89CC-64A3373390B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{439C0FD0-9E54-493D-89CC-64A3373390B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{439C0FD0-9E54-493D-89CC-64A3373390B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{439C0FD0-9E54-493D-89CC-64A3373390B5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FA8269D4-1675-4F37-8B99-D460FC34E27C} = {4877CD8A-1BDF-4DC5-AD78-4034AF0EDCBF}
+		{B5424690-A399-40EE-80A2-1324CED31AF4} = {4877CD8A-1BDF-4DC5-AD78-4034AF0EDCBF}
+		{0659954D-BD34-4343-986E-36379C9AEA7B} = {4877CD8A-1BDF-4DC5-AD78-4034AF0EDCBF}
+		{A3AADF99-2499-4EE8-9E18-BC93C774B79E} = {4877CD8A-1BDF-4DC5-AD78-4034AF0EDCBF}
+		{439C0FD0-9E54-493D-89CC-64A3373390B5} = {D4EBED12-71D7-4E7A-A72E-7499C8200C77}
+	EndGlobalSection
+EndGlobal

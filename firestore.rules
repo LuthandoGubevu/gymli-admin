@@ -121,8 +121,9 @@ service cloud.firestore {
 
     // ---------- Fingerprint templates (encrypted on the check-in PC) ----------
     match /templates/{memberId} {
-      allow read, create, update: if isDevice()
-        && (request.resource == null || (request.resource.data.cipher is string && request.resource.data.cipher.size() < 20000));
+      allow read: if isDevice();
+      allow create, update: if isDevice()
+        && request.resource.data.cipher is string && request.resource.data.cipher.size() < 20000;
       allow delete: if isDevice() || isManager();
     }
 
