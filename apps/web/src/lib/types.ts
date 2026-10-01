@@ -1,0 +1,138 @@
+import type { DeniedReason, PeriodKind } from './access'
+import type { LocalDate } from './dates'
+
+export type Role = 'front_desk' | 'manager' | 'device'
+
+export const ROLE_LABEL: Record<Role, string> = {
+  front_desk: 'Front desk',
+  manager: 'Manager',
+  device: 'Check-in PC',
+}
+
+export interface Actor {
+  uid: string
+  name: string
+}
+
+export interface Staff {
+  uid: string
+  name: string
+  email: string
+  role: Role
+  active: boolean
+}
+
+export interface Period {
+  id: string
+  kind: PeriodKind
+  qty: number
+  start: LocalDate
+  end: LocalDate
+  loggedBy: Actor
+  /** ms since epoch */
+  loggedAt: number
+  deleted?: boolean
+  changedBy?: Actor
+  changedAt?: number
+}
+
+export interface Fingerprint {
+  finger: string
+  enrolledAt: number
+}
+
+export interface Member {
+  id: string
+  number: number
+  firstName: string
+  lastName: string
+  cellphone: string
+  periods: Period[]
+  fingerprint: Fingerprint | null
+  createdAt: number
+  deleted: boolean
+}
+
+export interface DoorLog {
+  id: string
+  deviceId: string
+  memberId: string | null
+  memberName: string | null
+  memberNumber: number | null
+  result: 'allowed' | 'denied'
+  reason: DeniedReason | null
+  /** Text shown on the turnstile screen, e.g. "Membership ended 30 Sep" */
+  text: string
+  /** Paid until at the time of the scan (allowed scans) */
+  paidUntil: LocalDate | null
+  at: number
+  date: LocalDate
+  offline: boolean
+}
+
+export interface Device {
+  id: string
+  name: string
+  lastSeenAt: number
+  mode: 'simulation' | 'hardware'
+  readerConnected: boolean
+  relayConnected: boolean
+  pendingLogs: number
+  appVersion: string
+}
+
+export type EnrolStatus = 'pending' | 'scanning' | 'done' | 'failed' | 'cancelled'
+
+export interface EnrolRequest {
+  id: string
+  memberId: string
+  memberName: string
+  memberNumber: number
+  status: EnrolStatus
+  /** Scans captured so far (0–4) */
+  step: number
+  /** Raised by staff each time they press Capture scan */
+  captureSeq: number
+  message: string
+  requestedBy: Actor
+  createdAt: number
+}
+
+export interface AuditEntry {
+  id: string
+  at: number
+  actor: Actor & { role: Role }
+  action: string
+  entity: string
+  entityId: string
+  summary: string
+  before: unknown
+  after: unknown
+}
+
+export const memberName = (m: Pick<Member, 'firstName' | 'lastName'>) => `${m.firstName} ${m.lastName}`.trim()
+export const memberCode = (n: number) => `GY-${n}`
+export const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((p) => p[0]!.toUpperCase())
+    .filter((_, i, a) => i === 0 || i === a.length - 1)
+    .join('')
+
+/** "082 *** 4101" — personal data is masked in lists. */
+export function maskCellphone(c: string): string {
+  const digits = c.replace(/\D/g, '')
+  if (digits.length < 7) return c
+  return `${digits.slice(0, 3)} *** ${digits.slice(-4)}`
+}
+
+/** "082 123 4101" */
+export function formatCellphone(c: string): string {
+  const d = c.replace(/\D/g, '')
+  if (d.length === 10) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`
+  return c
+}
+
+export const DEVICE_ONLINE_MS = 30_000
+export const isDeviceOnline = (d: Device | undefined, now: number) => !!d && now - d.lastSeenAt < DEVICE_ONLINE_MS

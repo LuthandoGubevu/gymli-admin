@@ -1,0 +1,171 @@
+rules_version = '2';
+
+// Gymli security rules. These are the server-side guard: the web app and the
+// check-in PC talk to Firestore directly, so every business rule that protects
+// data is enforced here. Tested in apps/web/tests/rules.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Who is asking ----------
+    function signedIn() { return request.auth != null; }
+    function staffPath(uid) { return /databases/$(database)/documents/staff/$(uid); }
+    function me() { return get(staffPath(request.auth.uid)).data; }
+    function active() { return signedIn() && exists(staffPath(request.auth.uid)) && me().active == true; }
+    function isStaff() { return active() && me().role in ['front_desk', 'manager']; }
+    function isManager() { return active() && me().role == 'manager'; }
+    function isDevice() { return active() && me().role == 'device'; }
+
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // A member change must come with a new audit entry written in the same transaction.
+    function auditPath(id) { return /databases/$(database)/documents/audit/$(id); }
+    function withAudit() {
+      return request.resource.data.lastAuditId is string
+        && (resource == null || request.resource.data.lastAuditId != resource.data.lastAuditId)
+        && existsAfter(auditPath(request.resource.data.lastAuditId))
+        && getAfter(auditPath(request.resource.data.lastAuditId)).data.actor.uid == request.auth.uid;
+    }
+
+    // ---------- Staff and devices (logins) ----------
+    match /staff/{uid} {
+      allow read: if request.auth.uid == uid || isStaff();
+      allow create, update: if isManager()
+        && request.resource.data.role in ['front_desk', 'manager', 'device']
+        && request.resource.data.name is string
+        && request.resource.data.active is bool
+        // a manager cannot switch themselves off or demote themselves
+        && (uid != request.auth.uid || (request.resource.data.active == true && request.resource.data.role == 'manager'));
+      // First manager only: allowed once, while config/bootstrap does not exist.
+      allow create: if signedIn() && uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/config/bootstrap)
+        && existsAfter(/databases/$(database)/documents/config/bootstrap)
+        && request.resource.data.role == 'manager'
+        && request.resource.data.active == true;
+      allow delete: if false;
+    }
+
+    match /config/bootstrap {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(staffPath(request.auth.uid)).data.role == 'manager';
+      allow update, delete: if false;
+    }
+
+    // ---------- Members (with their paid periods) ----------
+    function validMember(d) {
+      return d.number is int
+        && d.firstName is string && d.firstName.size() <= 80
+        && d.lastName is string && d.lastName.size() <= 80
+        && d.cellphone is string && d.cellphone.size() <= 20
+        && d.periods is list && d.periods.size() <= 400
+        && d.deleted is bool
+        && d.updatedAt == request.time;
+    }
+
+    function validPeriod(p) {
+      return p.keys().hasAll(['id', 'kind', 'qty', 'start', 'end', 'loggedBy', 'loggedAt'])
+        && p.kind in ['day', 'days', 'months']
+        && p.qty is int && p.qty >= 1
+        && p.start is string && p.end is string && p.start <= p.end
+        && p.loggedBy.uid == request.auth.uid;
+    }
+
+    // Front desk may only add one payment at the end of the list; earlier ones stay exactly as they were.
+    function onlyAppendsOnePayment() {
+      let before = resource.data.periods;
+      let after = request.resource.data.periods;
+      return after == before
+        || (after.size() == before.size() + 1
+            && (before.size() == 0 || after[0:before.size()] == before)
+            && validPeriod(after[before.size()]));
+    }
+
+    match /members/{memberId} {
+      allow read: if isStaff() || isDevice();
+
+      allow create: if isStaff()
+        && validMember(request.resource.data)
+        && request.resource.data.deleted == false
+        && request.resource.data.periods.size() == 0
+        && request.resource.data.fingerprint == null
+        // member numbers come from the counter, in the same transaction
+        && getAfter(/databases/$(database)/documents/counters/members).data.next == request.resource.data.number + 1
+        && withAudit();
+
+      // Staff: details and payments. Payment edits/deletes and removing a member: manager only.
+      allow update: if isStaff()
+        && validMember(request.resource.data)
+        && request.resource.data.number == resource.data.number
+        && resource.data.deleted == false
+        && withAudit()
+        && (isManager() || (request.resource.data.deleted == false && onlyAppendsOnePayment()))
+        && (request.resource.data.fingerprint == resource.data.fingerprint || request.resource.data.deleted == true);
+
+      // Check-in PC: only records that a fingerprint was enrolled.
+      allow update: if isDevice()
+        && resource.data.deleted == false
+        && changed().hasOnly(['fingerprint', 'updatedAt', 'lastAuditId'])
+        && request.resource.data.updatedAt == request.time
+        && withAudit();
+
+      allow delete: if false; // removal keeps a blank record so the PC deletes its copy
+    }
+
+    match /counters/members {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.next == 1002;
+      allow update: if isStaff() && request.resource.data.next == resource.data.next + 1;
+      allow delete: if false;
+    }
+
+    // ---------- Fingerprint templates (encrypted on the check-in PC) ----------
+    match /templates/{memberId} {
+      allow read, create, update: if isDevice()
+        && (request.resource == null || (request.resource.data.cipher is string && request.resource.data.cipher.size() < 20000));
+      allow delete: if isDevice() || isManager();
+    }
+
+    // ---------- Door log (written only by the check-in PC) ----------
+    match /doorLogs/{logId} {
+      allow read: if isStaff();
+      allow create: if isDevice()
+        && request.resource.data.deviceId == request.auth.uid
+        && request.resource.data.result in ['allowed', 'denied']
+        && request.resource.data.at is int
+        && request.resource.data.date is string;
+      allow update, delete: if false;
+    }
+
+    // ---------- Check-in PCs: heartbeat and status ----------
+    match /devices/{deviceId} {
+      allow read: if isStaff() || (isDevice() && deviceId == request.auth.uid);
+      allow create, update: if isDevice() && deviceId == request.auth.uid;
+      allow delete: if isManager();
+    }
+
+    // ---------- Fingerprint enrolment, started from the web app ----------
+    match /enrolRequests/{id} {
+      allow read: if isStaff() || isDevice();
+      allow create: if isStaff()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.step == 0
+        && request.resource.data.requestedBy.uid == request.auth.uid
+        && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId));
+      allow update: if (isStaff() && changed().hasOnly(['captureSeq', 'status', 'updatedAt'])
+                          && request.resource.data.status in ['pending', 'scanning', 'cancelled'])
+                    || isDevice();
+      allow delete: if false;
+    }
+
+    // ---------- Audit trail: add-only ----------
+    match /audit/{id} {
+      allow read: if isManager();
+      allow create: if active()
+        && request.resource.data.actor.uid == request.auth.uid
+        && request.resource.data.actor.role == me().role
+        && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+  }
+}
