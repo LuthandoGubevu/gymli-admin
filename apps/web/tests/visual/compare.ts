@@ -46,7 +46,7 @@ const SHOTS: Shot[] = [
     design: '06a Enrol fingerprint',
     path: (ids) => `/members/${ids.ntombi}`,
     prepare: async (p) => {
-      await p.getByRole('button', { name: 'Enrol', exact: true }).first().click()
+      await p.getByRole('button', { name: /^(re-)?enrol$/i }).first().click()
     },
   },
   { key: 'mobile-profile', design: '07 Mobile profile', path: (ids) => `/members/${ids.lerato}` },

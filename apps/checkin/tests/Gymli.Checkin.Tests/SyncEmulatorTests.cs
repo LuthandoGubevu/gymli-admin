@@ -62,9 +62,9 @@ public sealed class SyncEmulatorTests : IDisposable
         Assert.Equal(0, store.PendingCount);
 
         // Enrolment as the check-in PC passes the rules (template + member flag + audit, one commit)
-        var ntombi = store.Members.Single(m => m.Number == 1030);
+        var ntombi = store.Members.Single(m => m.Number == 1029); // re-enrol Refilwe; keeps Ntombi (1030) un-enrolled for the visual check
         var cipher = store.Encrypt(Encoding.UTF8.GetBytes("SIM:" + ntombi.Id));
-        await sync.SaveEnrolmentAsync(ntombi.Id, 1030, cipher, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "right_index", default);
+        await sync.SaveEnrolmentAsync(ntombi.Id, 1029, cipher, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), "right_index", default);
         await sync.PullMembersAsync(default);
         Assert.True(store.GetMember(ntombi.Id)!.FingerprintEnrolled);
         Assert.True(store.HasTemplate(ntombi.Id));

@@ -1,0 +1,24 @@
+# Design deviations
+
+Everything here is a deliberate difference from `design/gymli-design.html`, with the reason.
+Checked with `npm run visual` (web, 1440 and 390) and `Gymli.Checkin --screenshots` (kiosk).
+
+| Where | Design | Built | Why |
+|---|---|---|---|
+| Top nav + rail | 3 items: Today, Members, Check-in screen | 4th item **Door log** (scroll icon) | The brief requires a Door log screen; the design has none. Same pill/rail style. |
+| Rail | Settings icon for everyone | Settings shown to **managers only** | Only managers manage staff, import and audit. |
+| Top nav search | Empty grey circle | Search icon; opens Members with the search box focused | Design shows an unlabelled circle; a search icon makes its job clear. |
+| "Check-in screen" (web) | Kiosk is shown as a screen of the product | Web page = live mirror of the turnstile (last result, online, reader/relay, latest scans) | The real kiosk is the Windows app at reception; the web page shows its status. |
+| Log payment → "Logged by" | Dropdown with chevron | Fixed to the signed-in person, no chevron | Audit trail: a payment is always logged by whoever is signed in. |
+| Log payment → Custom | Only the "— Custom" tile is shown | Selecting it shows a Days/Months switch and a −/+ stepper below the grid | The design says "custom stepper works" but does not draw it; built from the existing segmented-pill and field styles. |
+| Log payment (manager editing) | — | Same modal, title "Change payment for", plus **Delete payment** | Managers can edit/delete payments (brief). |
+| Enrol fingerprint | "Capture scan" captures directly | Each press asks the check-in PC for one scan; shows "Check-in PC offline" when it is off | The reader is plugged into the reception PC, not the browser. |
+| Member profile | Fingerprint card always "Right index finger · Re-enrol" | "No fingerprint yet · Enrol" when not enrolled | State not in the design. |
+| Access card | Green "Can enter" only (desktop), red "Locked out" (mobile) | Also yellow "Not yet · starts …" and red "No payment yet · never paid" | States not in the design; built from the same card. |
+| Paid periods | "Current" pill | Also grey "Next" for future periods, pencil for managers | States not in the design. |
+| Members filters | Locked out = 7 | "Locked out" counts only members whose last period ended; members who never paid or start later appear under All | Matches the design's numbers (16 + 6 + 7 + 1 = 30). |
+| Login, Add member, Door log, Settings | Not designed | Built from modal, field, pill and card styles | Brief: extend the existing style. |
+| Arrows "8 Sep → 7 Oct" | Thin arrow (fallback font in the design file) | Archivo's own arrow, a little heavier | The bundled Archivo has the arrow glyph. |
+| Kiosk fonts | Archivo variable width (CSS font-stretch) | Archivo instances pinned at 62/64/66/68 % width (`Assets/Fonts`) | The kiosk UI toolkit cannot set the width axis; the pinned instances render the same shapes. |
+| Kiosk | — | Enrolment view on the kiosk (ring + "Scan 2 of 4") | The member at the reader needs to see what to do. Reuses the idle orb and the enrol dots. |
+| Ending soon colour | Dashboard: "Yellow = 3 days or less"; Members list: "Ends in 6 days" also yellow | Status "Ending this week" (0–6 days) is yellow everywhere; on Today, cards with ≤ 3 days are filled yellow | Reads both parts of the design consistently. |

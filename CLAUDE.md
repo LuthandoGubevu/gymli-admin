@@ -93,7 +93,32 @@ implementations.
   are shown on screen. Real implementations are chosen by a config flag.
 - The check-in app keeps working offline from its local SQLite copy and queues door logs.
 
-## 6. How to work
+## 6. Architecture (as built)
+
+- **Backend: Firebase** (project `fundanii-ai`): Firebase Auth (email/password) + Cloud Firestore.
+  No server code. `firestore.rules` is the server-side guard — every protection lives there and is
+  tested in `apps/web/tests/rules`. Change rules → run `npm run test:rules`.
+- **Web app** `apps/web`: React + Vite + TypeScript + Tailwind v4. Tokens: `src/styles/tokens.css`
+  (spacing base is 1px, so `p-22` = 22px). Business rules: `src/lib/access.ts`, `src/lib/dates.ts`.
+  All writes go through `src/data/actions.ts` (transaction + audit entry). Live data: `src/data/store.tsx`.
+- **Check-in app** `apps/checkin`: .NET 8. `Gymli.Checkin.Core` (rules, SQLite store, encrypted
+  templates, Firestore REST sync, engine), hardware projects behind `IFingerprintReader`/`ITurnstileRelay`,
+  `Gymli.Checkin.App` (Avalonia kiosk; `Tokens.axaml` mirrors the web tokens).
+- Fingerprint enrolment is started in the web app (`enrolRequests` collection) and done by the check-in PC.
+- Firestore data: `members` (with `periods` array, soft-deleted payments), `templates` (ciphertext only),
+  `doorLogs` (written by the PC only), `devices` (heartbeat), `enrolRequests`, `staff`, `audit` (add-only),
+  `counters/members`, `config/bootstrap`.
+
+### Commands
+| | |
+|---|---|
+| Emulator + sample data | `cd apps/web && npm run emulators` then `npm run seed` |
+| Web app on the emulator | `npm run dev:emu` (logins in `scripts/seed.ts`) |
+| Tests | `npm test`, `npm run test:rules`, `cd apps/checkin && dotnet test`, `npm run e2e` |
+| Visual check | `npm run visual` (web) · `dotnet run --project apps/checkin/src/Gymli.Checkin.App -- --screenshots DIR` (kiosk) |
+| Deploy | `docs/deployment.md` |
+
+## 7. How to work
 
 - Work milestone by milestone. Commit after each meaningful step with a clear message.
 - After each milestone: run all tests, run the Playwright visual comparison, then give the

@@ -300,7 +300,7 @@ function AuditCard() {
   useEffect(
     () =>
       onSnapshot(
-        query(collection(db, 'audit'), orderBy('at', 'desc'), limit(100)),
+        query(collection(db, 'audit'), orderBy('at', 'desc'), limit(30)),
         (snap) => setEntries(snap.docs.map((d) => toAudit(d.id, d.data()))),
         () => setError(true),
       ),
@@ -311,7 +311,7 @@ function AuditCard() {
       <div className="mb-10 flex items-center gap-14">
         <CardTitle size={32}>Audit trail</CardTitle>
         <div className="flex-1" />
-        <div className="text-14 text-muted">Latest 100 changes · cannot be edited</div>
+        <div className="text-14 text-muted">Latest 30 changes · cannot be edited</div>
       </div>
       {error && <ErrorNote>Could not load the audit trail.</ErrorNote>}
       {!entries ? (
