@@ -146,6 +146,24 @@ const SCANS: { number: number | null; offset: number; time: string }[] = [
   { number: 1001, offset: -1, time: '06:20' },
 ]
 
+/** A valid-looking SA ID for sample member n: born in the 1980s/90s, check digit computed. */
+function sampleSaId(n: number): string {
+  const yy = 80 + (n % 20)
+  const mm = String((n % 12) + 1).padStart(2, '0')
+  const dd = String((n % 28) + 1).padStart(2, '0')
+  const base = `${yy}${mm}${dd}${String(5000 + (n % 4000)).padStart(4, '0')}08`
+  let sum = 0
+  for (let i = 0; i < 12; i++) {
+    let d = Number(base[11 - i])
+    if (i % 2 === 0) {
+      d *= 2
+      if (d > 9) d -= 9
+    }
+    sum += d
+  }
+  return base + String((10 - (sum % 10)) % 10)
+}
+
 async function main() {
   console.log(`Seeding emulator project ${PROJECT} for ${TODAY}`)
 
@@ -200,6 +218,21 @@ async function main() {
         updatedAt: serverTimestamp(),
         lastAuditId: auditId,
       })
+      // Personal details for every member except GY-1030 (shows "ID number missing")
+      if (spec.number !== 1030) {
+        const id = sampleSaId(spec.number)
+        tx.set(doc(db, 'members', memberRef.id, 'private', 'details'), {
+          email: `${spec.first}.${spec.last}`.toLowerCase().replace(/\s+/g, '') + '@example.co.za',
+          dateOfBirth: `19${id.slice(0, 2)}-${id.slice(2, 4)}-${id.slice(4, 6)}`,
+          idType: 'sa',
+          idLast3: id.slice(-3),
+          emergencyName: spec.number % 3 === 0 ? '' : `${['Nomvula', 'Sipho', 'Anele', 'Lindi'][spec.number % 4]} ${spec.last}`,
+          emergencyPhone: spec.number % 3 === 0 ? '' : `083${String(spec.number * 7919).slice(-7)}`,
+          notes: spec.number === 1007 ? 'Student. Pays on the 8th.' : '',
+          lastAuditId: auditId,
+        })
+        tx.set(doc(db, 'members', memberRef.id, 'private', 'identity'), { idType: 'sa', idNumber: id, lastAuditId: auditId })
+      }
     })
 
     const periods: object[] = []
@@ -215,6 +248,7 @@ async function main() {
         end: periodEnd(p.kind, p.qty, start),
         loggedBy: { uid: staffFor[p.by].uid, name: staffFor[p.by].name },
         loggedAt: at(start, p.time),
+        method: (['card', 'cash', 'eft', 'debit_order'] as const)[(spec.number + periods.length) % 4],
       }
       periods.push(period)
       await runTransaction(db, async (tx) => {

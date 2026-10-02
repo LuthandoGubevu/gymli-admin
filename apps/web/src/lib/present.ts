@@ -1,7 +1,7 @@
 /** Wording and colours for statuses, in the design's tone. */
 import { memberStatus, periodLabel, type StatusInfo } from './access'
 import { dateAtGym, diffDays, formatDayMonth, formatFull, formatSmart, timeAtGym, type LocalDate } from './dates'
-import type { Member, Period } from './types'
+import { PAYMENT_METHOD_LABEL, type Member, type Period } from './types'
 import type { Tone } from '../components/ui'
 
 export interface MemberView {
@@ -58,7 +58,8 @@ export function lastPaymentText(p: Period | null): string {
 /** "logged by Zodwa, 8 Sep 07:12" */
 export function loggedByText(p: Period): string {
   const first = p.loggedBy.name.split(' ')[0]
-  return `logged by ${first}, ${formatDayMonth(dateAtGym(p.loggedAt))} ${timeAtGym(p.loggedAt)}`
+  const method = p.method ? `${PAYMENT_METHOD_LABEL[p.method]} · ` : ''
+  return `${method}logged by ${first}, ${formatDayMonth(dateAtGym(p.loggedAt))} ${timeAtGym(p.loggedAt)}`
 }
 
 export const longDate = formatFull

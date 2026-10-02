@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AccessCalendar } from '../components/member/AccessCalendar'
 import { EnrolModal } from '../components/member/EnrolModal'
 import { LogPaymentModal } from '../components/member/LogPaymentModal'
+import { MemberDetailsCard } from '../components/member/MemberDetailsCard'
 import { MemberFormModal } from '../components/member/MemberFormModal'
 import { Avatar, Button, Card, CardTitle, cx, EmptyState, ErrorNote, IconButton, Pill, Spinner } from '../components/ui'
 import { Modal } from '../components/ui/Modal'
@@ -152,6 +153,8 @@ export function MemberProfilePage() {
               {member.fingerprint ? 'Re-enrol' : 'Enrol'}
             </Button>
           </Card>
+
+          <MemberDetailsCard member={member} onEdit={() => setEditing(true)} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-16 max-md:gap-14">

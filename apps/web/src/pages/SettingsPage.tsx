@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Avatar, Button, Card, CardTitle, cx, EmptyState, ErrorNote, PageHeader, Pill, SkeletonRows, TextField } from '../components/ui'
 import { Modal } from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
-import { addMember, authMessage, createStaff, logPayment, setStaffActive, type NewStaffInput } from '../data/actions'
+import { addMember, authMessage, EMPTY_MEMBER_INPUT, createStaff, logPayment, setStaffActive, type NewStaffInput } from '../data/actions'
 import { toAudit } from '../data/convert'
 import { useGym, useNow, useStaff, useToday } from '../data/store'
 import { importedPeriod, parseMemberCsv, type ImportRow } from '../lib/csvImport'
@@ -231,7 +231,19 @@ function ImportCard() {
     let failed = 0
     for (const r of ok) {
       try {
-        const { id } = await addMember(me, { firstName: r.firstName, lastName: r.lastName, cellphone: r.cellphone })
+        const { id } = await addMember(
+          me,
+          {
+            ...EMPTY_MEMBER_INPUT,
+            firstName: r.firstName,
+            lastName: r.lastName,
+            cellphone: r.cellphone,
+            email: r.email,
+            idType: r.idType,
+            idNumber: r.idNumber,
+          },
+          today,
+        )
         if (r.paidUntil) {
           const p = importedPeriod(r.paidUntil, today)
           await logPayment(me, id, { kind: 'days', qty: p.days, start: p.start })
@@ -254,13 +266,13 @@ function ImportCard() {
         <div className="flex-1" />
         <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={async (e) => {
           const f = e.target.files?.[0]
-          if (f) setRows(parseMemberCsv(await f.text()))
+          if (f) setRows(parseMemberCsv(await f.text(), today))
           e.target.value = ''
         }} />
         <Button size="sm" variant="outline" icon={FileUp} onClick={() => fileRef.current?.click()} disabled={!!progress}>Choose CSV file</Button>
       </div>
       <div className="text-14 text-muted">
-        Columns: name, cellphone, paid until (for example <span className="font-semibold text-ink">Thabo Nkosi, 082 123 4101, 31/10/2026</span>). Members already on the list (same cellphone) are skipped.
+        Columns: name, cellphone, paid until, and optionally email and ID number (for example <span className="font-semibold text-ink">Thabo Nkosi, 082 123 4101, 31/10/2026</span>). Members without an ID number show “ID number missing” until staff add it. Members already on the list (same cellphone) are skipped.
       </div>
       {rows && (
         <div className="mt-16 flex flex-col gap-12">

@@ -131,6 +131,79 @@ describe('members', () => {
   })
 })
 
+describe('personal details and ID numbers', () => {
+  const details = (auditId: string, extra = {}) => ({
+    email: 't@x.co.za', dateOfBirth: '1992-03-15', idType: 'sa', idLast3: '088',
+    emergencyName: 'N', emergencyPhone: '0832107788', notes: '', lastAuditId: auditId, ...extra,
+  })
+  const identity = (auditId: string, idNumber = '9203155108088') => ({ idType: 'sa', idNumber, lastAuditId: auditId })
+  const dRef = (f: Firestore) => doc(f, 'members', 'm1', 'private', 'details')
+  const iRef = (f: Firestore) => doc(f, 'members', 'm1', 'private', 'identity')
+
+  it('front desk can save details and add an ID when none is on file, with an audit entry', async () => {
+    const f = db('desk')
+    await assertSucceeds(withAudit(f, 'desk', 'front_desk', (id, tx) => {
+      tx.set(dRef(f), details(id))
+      tx.set(iRef(f), identity(id))
+    }))
+  })
+
+  it('without an audit entry the details are refused', async () => {
+    await assertFails(setDoc(dRef(db('desk')), details('made-up')))
+  })
+
+  it('front desk can read details but not the full ID number', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'members', 'm1', 'private', 'details'), details('a'))
+      await setDoc(doc(ctx.firestore(), 'members', 'm1', 'private', 'identity'), identity('a'))
+    })
+    await assertSucceeds(getDoc(dRef(db('desk'))))
+    await assertFails(getDoc(iRef(db('desk'))))
+    await assertSucceeds(getDoc(iRef(db('mgr'))))
+  })
+
+  it('the check-in PC cannot read details or ID numbers', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'members', 'm1', 'private', 'details'), details('a'))
+      await setDoc(doc(ctx.firestore(), 'members', 'm1', 'private', 'identity'), identity('a'))
+    })
+    await assertFails(getDoc(dRef(db('pc'))))
+    await assertFails(getDoc(iRef(db('pc'))))
+  })
+
+  it('only a manager can change an ID that is on file', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'members', 'm1', 'private', 'details'), details('a'))
+      await setDoc(doc(ctx.firestore(), 'members', 'm1', 'private', 'identity'), identity('a'))
+    })
+    const f = db('desk')
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) => tx.set(iRef(f), identity(id, '0501015123083'))))
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) => tx.set(dRef(f), details(id, { idLast3: '083' }))))
+    // front desk may still change other details
+    await assertSucceeds(withAudit(f, 'desk', 'front_desk', (id, tx) => tx.set(dRef(f), details(id, { email: 'new@x.co.za' }))))
+    const m = db('mgr')
+    await assertSucceeds(withAudit(m, 'mgr', 'manager', (id, tx) => {
+      tx.set(iRef(m), identity(id, '0501015123083'))
+      tx.set(dRef(m), details(id, { idLast3: '083' }))
+    }))
+  })
+
+  it('unknown fields are refused', async () => {
+    const f = db('desk')
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) => tx.set(dRef(f), details(id, { medical: 'asthma' }))))
+  })
+})
+
+describe('payment method', () => {
+  it('is checked against the list when given', async () => {
+    const f = db('desk')
+    await assertSucceeds(withAudit(f, 'desk', 'front_desk', (id, tx) =>
+      tx.update(doc(f, 'members', 'm1'), { periods: [period('desk'), { ...period('desk', 'p2', '2026-11-01', '2026-11-30'), method: 'card' }], updatedAt: serverTimestamp(), lastAuditId: id })))
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) =>
+      tx.update(doc(f, 'members', 'm1'), { periods: [period('desk'), { ...period('desk', 'p3'), method: 'bitcoin' }], updatedAt: serverTimestamp(), lastAuditId: id })))
+  })
+})
+
 describe('audit trail', () => {
   it('cannot be edited or deleted, even by a manager', async () => {
     await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'audit', 'a1'), { summary: 'x' }))

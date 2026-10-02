@@ -7,6 +7,7 @@ import { createUserWithEmailAndPassword, getAuth, signOut, connectAuthEmulator }
 import {
   collection,
   doc,
+  getDoc,
   increment,
   runTransaction,
   serverTimestamp,
@@ -17,7 +18,8 @@ import {
 import { periodEnd, periodLabel, type PeriodKind } from '../lib/access'
 import { formatDayMonth, isValidDate, type LocalDate } from '../lib/dates'
 import { db, firebaseConfig, useEmulator } from '../lib/firebase'
-import { memberCode, type Member, type Period, type Role, type Staff } from '../lib/types'
+import { checkId, checkSaId, cleanId, type IdType } from '../lib/idNumber'
+import { memberCode, type Member, type MemberDetails, type MemberIdentity, type PaymentMethod, type Period, type Role, type Staff } from '../lib/types'
 import { toMember } from './convert'
 
 export class ActionError extends Error {}
@@ -49,6 +51,28 @@ export interface MemberInput {
   firstName: string
   lastName: string
   cellphone: string
+  email: string
+  idType: IdType
+  /** Empty when the ID is not being set or changed */
+  idNumber: string
+  /** Typed in for passports; worked out from the number for SA IDs */
+  dateOfBirth: string
+  emergencyName: string
+  emergencyPhone: string
+  notes: string
+}
+
+export const EMPTY_MEMBER_INPUT: MemberInput = {
+  firstName: '',
+  lastName: '',
+  cellphone: '',
+  email: '',
+  idType: 'sa',
+  idNumber: '',
+  dateOfBirth: '',
+  emergencyName: '',
+  emergencyPhone: '',
+  notes: '',
 }
 
 export function cleanCellphone(raw: string): string {
@@ -58,20 +82,62 @@ export function cleanCellphone(raw: string): string {
   return d.replace(/\D/g, '')
 }
 
-/** Returns an error message, or null when the details are fine. */
-export function checkMemberInput(m: MemberInput): Partial<Record<keyof MemberInput, string>> {
-  const errors: Partial<Record<keyof MemberInput, string>> = {}
+export type MemberErrors = Partial<Record<keyof MemberInput, string>>
+
+/**
+ * Checks the form. `idRequired`: a new member, or one with no ID on file yet.
+ * Returns an empty object when everything is fine.
+ */
+export function checkMemberInput(m: MemberInput, today: LocalDate, idRequired: boolean): MemberErrors {
+  const errors: MemberErrors = {}
   if (!m.firstName.trim()) errors.firstName = 'Enter a first name'
   if (!m.lastName.trim()) errors.lastName = 'Enter a surname'
   const c = cleanCellphone(m.cellphone)
   if (!c) errors.cellphone = 'Enter a cellphone number'
   else if (!/^0\d{9}$/.test(c)) errors.cellphone = 'Use a 10-digit number, like 082 123 4567'
+  if (m.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.email.trim())) errors.email = 'Check the email address'
+  if (m.idNumber.trim() || idRequired) {
+    if (!m.idNumber.trim()) errors.idNumber = m.idType === 'sa' ? 'Enter the SA ID number' : 'Enter the passport number'
+    else {
+      const id = checkId(m.idType, m.idNumber, today)
+      if (!id.ok) errors.idNumber = id.error
+    }
+    if (m.idType === 'passport' && !isValidDate(m.dateOfBirth)) errors.dateOfBirth = 'Enter the date of birth'
+  }
+  const ec = cleanCellphone(m.emergencyPhone)
+  if (m.emergencyPhone.trim() && !/^0\d{9}$/.test(ec)) errors.emergencyPhone = 'Use a 10-digit number'
+  if (m.emergencyPhone.trim() && !m.emergencyName.trim()) errors.emergencyName = 'Enter their name'
+  if (m.notes.length > 500) errors.notes = 'Keep notes under 500 characters'
   return errors
 }
 
-export async function addMember(staff: Staff, input: MemberInput): Promise<{ id: string; number: number }> {
+const detailsRef = (memberId: string) => doc(db, 'members', memberId, 'private', 'details')
+const identityRef = (memberId: string) => doc(db, 'members', memberId, 'private', 'identity')
+
+/** The fields of the private details document. The ID part is only included when the ID is set. */
+function detailsData(input: MemberInput, today: LocalDate, keep?: MemberDetails | null) {
+  const idNumber = cleanId(input.idNumber)
+  const setsId = idNumber.length > 0
+  const dob = setsId
+    ? input.idType === 'sa'
+      ? checkSaId(idNumber, today).dateOfBirth ?? ''
+      : input.dateOfBirth
+    : (keep?.dateOfBirth ?? input.dateOfBirth)
+  return {
+    email: input.email.trim().toLowerCase(),
+    dateOfBirth: dob,
+    idType: setsId ? input.idType : (keep?.idType ?? null),
+    idLast3: setsId ? idNumber.slice(-3) : (keep?.idLast3 ?? ''),
+    emergencyName: input.emergencyName.trim(),
+    emergencyPhone: cleanCellphone(input.emergencyPhone),
+    notes: input.notes.trim(),
+  }
+}
+
+export async function addMember(staff: Staff, input: MemberInput, today: LocalDate): Promise<{ id: string; number: number }> {
   const counterRef = doc(db, 'counters', 'members')
   const memberRef = doc(collection(db, 'members'))
+  const idNumber = cleanId(input.idNumber)
   return runTransaction(db, async (tx) => {
     const counter = await tx.get(counterRef)
     const number: number = counter.exists() ? counter.data().next : 1001
@@ -86,8 +152,9 @@ export async function addMember(staff: Staff, input: MemberInput): Promise<{ id:
       action: 'member.create',
       entity: 'member',
       entityId: memberRef.id,
-      summary: `Added ${data.firstName} ${data.lastName} (${memberCode(number)})`,
-      after: { number, firstName: data.firstName, lastName: data.lastName },
+      // never the ID number itself in the audit trail
+      summary: `Added ${data.firstName} ${data.lastName} (${memberCode(number)})${idNumber ? '' : ' without an ID number'}`,
+      after: { number, firstName: data.firstName, lastName: data.lastName, idType: idNumber ? input.idType : null },
     })
     tx.set(memberRef, {
       ...data,
@@ -98,27 +165,49 @@ export async function addMember(staff: Staff, input: MemberInput): Promise<{ id:
       updatedAt: serverTimestamp(),
       lastAuditId: auditId,
     })
+    tx.set(detailsRef(memberRef.id), { ...detailsData(input, today), lastAuditId: auditId })
+    if (idNumber) tx.set(identityRef(memberRef.id), { idType: input.idType, idNumber, lastAuditId: auditId })
     return { id: memberRef.id, number }
   })
 }
 
-export async function updateMember(staff: Staff, memberId: string, input: MemberInput): Promise<void> {
+/**
+ * Saves changed details. The ID number is written only when `input.idNumber` is filled in:
+ * managers can change it; front desk can only add one when none is on file.
+ */
+export async function updateMember(staff: Staff, memberId: string, input: MemberInput, today: LocalDate, current: MemberDetails | null): Promise<void> {
   const ref = doc(db, 'members', memberId)
+  const idNumber = cleanId(input.idNumber)
+  const hadId = !!current?.idType
+  if (idNumber && hadId && staff.role !== 'manager') throw new ActionError('Only a manager can change the ID number')
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref)
     if (!snap.exists()) throw new ActionError('This member no longer exists')
     const before = toMember(snap.id, snap.data())
     const after = { firstName: input.firstName.trim(), lastName: input.lastName.trim(), cellphone: cleanCellphone(input.cellphone) }
+    const changed = [
+      before.firstName !== after.firstName || before.lastName !== after.lastName ? 'name' : '',
+      before.cellphone !== after.cellphone ? 'cellphone' : '',
+      idNumber ? (hadId ? 'ID number' : 'ID number added') : '',
+    ].filter(Boolean)
     const auditId = writeAudit(tx, staff, {
       action: 'member.update',
       entity: 'member',
       entityId: memberId,
-      summary: `Changed details of ${memberCode(before.number)}`,
-      before: { firstName: before.firstName, lastName: before.lastName, cellphoneChanged: before.cellphone !== after.cellphone },
+      summary: `Changed details of ${memberCode(before.number)}${changed.length ? ` (${changed.join(', ')})` : ''}`,
+      before: { firstName: before.firstName, lastName: before.lastName },
       after: { firstName: after.firstName, lastName: after.lastName },
     })
     tx.update(ref, { ...after, updatedAt: serverTimestamp(), lastAuditId: auditId })
+    tx.set(detailsRef(memberId), { ...detailsData(input, today, current), lastAuditId: auditId })
+    if (idNumber) tx.set(identityRef(memberId), { idType: input.idType, idNumber, lastAuditId: auditId })
   })
+}
+
+/** Managers only (enforced by the rules): the full ID number. */
+export async function readIdentity(memberId: string): Promise<MemberIdentity | null> {
+  const snap = await getDoc(identityRef(memberId))
+  return snap.exists() ? { idType: snap.data().idType, idNumber: snap.data().idNumber } : null
 }
 
 /**
@@ -136,7 +225,7 @@ export async function removeMember(staff: Staff, memberId: string): Promise<void
       action: 'member.remove',
       entity: 'member',
       entityId: memberId,
-      summary: `Removed ${memberCode(m.number)} and erased their details and fingerprint`,
+      summary: `Removed ${memberCode(m.number)} and erased their details, ID number and fingerprint`,
       before: { number: m.number, periods: m.periods.length, fingerprint: !!m.fingerprint },
     })
     tx.set(ref, {
@@ -152,6 +241,8 @@ export async function removeMember(staff: Staff, memberId: string): Promise<void
       lastAuditId: auditId,
     })
     tx.delete(doc(db, 'templates', memberId))
+    tx.delete(detailsRef(memberId))
+    tx.delete(identityRef(memberId))
   })
 }
 
@@ -161,6 +252,8 @@ export interface PaymentInput {
   kind: PeriodKind
   qty: number
   start: LocalDate
+  /** How they paid. Optional only for imports. */
+  method?: PaymentMethod
 }
 
 export function checkPayment(p: PaymentInput): string | null {
@@ -190,6 +283,7 @@ export async function logPayment(staff: Staff, memberId: string, input: PaymentI
       end: periodEnd(input.kind, input.kind === 'day' ? 1 : input.qty, input.start),
       loggedBy: actorOf(staff),
       loggedAt: Date.now(),
+      ...(input.method ? { method: input.method } : {}),
     }
     const auditId = writeAudit(tx, staff, {
       action: 'payment.create',
@@ -222,6 +316,7 @@ export async function editPayment(staff: Staff, memberId: string, periodId: stri
       qty,
       start: input.start,
       end: periodEnd(input.kind, qty, input.start),
+      ...(input.method ? { method: input.method } : {}),
       changedBy: actorOf(staff),
       changedAt: Date.now(),
     }

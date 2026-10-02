@@ -1,5 +1,6 @@
 import type { DeniedReason, PeriodKind } from './access'
 import type { LocalDate } from './dates'
+import type { IdType } from './idNumber'
 
 export type Role = 'front_desk' | 'manager' | 'device'
 
@@ -34,6 +35,48 @@ export interface Period {
   deleted?: boolean
   changedBy?: Actor
   changedAt?: number
+  /** How they paid (no amounts are recorded). Missing on older or imported payments. */
+  method?: PaymentMethod
+}
+
+export type PaymentMethod = 'cash' | 'card' | 'eft' | 'debit_order'
+export const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'card', 'eft', 'debit_order']
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  card: 'Card',
+  eft: 'EFT',
+  debit_order: 'Debit order',
+}
+
+/**
+ * Personal details, kept in members/{id}/private/details: readable by staff only,
+ * never synced to the check-in PC.
+ */
+export interface MemberDetails {
+  email: string
+  dateOfBirth: string
+  idType: IdType | null
+  /** Last 3 characters of the ID, for the masked display */
+  idLast3: string
+  emergencyName: string
+  emergencyPhone: string
+  notes: string
+}
+
+/** Full ID number, kept in members/{id}/private/identity: managers only. */
+export interface MemberIdentity {
+  idType: IdType
+  idNumber: string
+}
+
+export const EMPTY_DETAILS: MemberDetails = {
+  email: '',
+  dateOfBirth: '',
+  idType: null,
+  idLast3: '',
+  emergencyName: '',
+  emergencyPhone: '',
+  notes: '',
 }
 
 export interface Fingerprint {

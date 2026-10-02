@@ -1,6 +1,7 @@
 /** CSV import of the gym's existing list: name, cellphone, paid-until date. */
 import { cleanCellphone } from '../data/actions'
 import { diffDays, isValidDate, makeDate, type LocalDate } from './dates'
+import { checkPassport, checkSaId, cleanId, type IdType } from './idNumber'
 
 export interface ImportRow {
   line: number
@@ -8,6 +9,10 @@ export interface ImportRow {
   lastName: string
   cellphone: string
   paidUntil: LocalDate | null
+  email: string
+  idType: IdType
+  /** Empty when the file has no ID for this member (the profile then shows "ID number missing") */
+  idNumber: string
   error: string | null
 }
 
@@ -66,7 +71,7 @@ function splitName(full: string): { firstName: string; lastName: string } {
  * Reads the CSV. Header row is optional; columns are found by name
  * (name / first name + surname, cellphone / phone / mobile, paid until / expiry).
  */
-export function parseMemberCsv(text: string): ImportRow[] {
+export function parseMemberCsv(text: string, today: LocalDate): ImportRow[] {
   const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim())
   if (lines.length === 0) return []
   const sep = (lines[0].match(/;/g)?.length ?? 0) > (lines[0].match(/,/g)?.length ?? 0) ? ';' : ','
@@ -77,6 +82,8 @@ export function parseMemberCsv(text: string): ImportRow[] {
   let iName = find('name', 'fullname', 'member', 'membername')
   let iPhone = find('cellphone', 'cell', 'phone', 'mobile', 'cellphonenumber', 'phonenumber', 'cellnumber')
   let iUntil = find('paiduntil', 'paidto', 'expiry', 'expires', 'expirydate', 'enddate', 'until', 'paidtill')
+  const iEmail = find('email', 'emailaddress', 'mail')
+  const iId = find('idnumber', 'id', 'idno', 'said', 'identitynumber', 'passport', 'passportnumber', 'idpassport')
   const hasHeader = iPhone >= 0 || iName >= 0 || iFirst >= 0
   if (!hasHeader) {
     iName = 0
@@ -93,11 +100,18 @@ export function parseMemberCsv(text: string): ImportRow[] {
     const phone = cleanCellphone(cells[iPhone] ?? '')
     const untilRaw = iUntil >= 0 ? (cells[iUntil] ?? '') : ''
     const paidUntil = parseDateLoose(untilRaw)
+    const email = hasHeader && iEmail >= 0 ? (cells[iEmail] ?? '').trim().toLowerCase() : ''
+    const idNumber = hasHeader && iId >= 0 ? cleanId(cells[iId] ?? '') : ''
+    // 13 digits = SA ID; anything else is taken as a passport number
+    const idType: IdType = /^\d{13}$/.test(idNumber) ? 'sa' : 'passport'
+    const idCheck = !idNumber ? null : idType === 'sa' ? checkSaId(idNumber, today) : checkPassport(idNumber)
     let error: string | null = null
     if (!names.firstName) error = 'No name'
     else if (!/^0\d{9}$/.test(phone)) error = 'Cellphone is not 10 digits'
     else if (untilRaw && !paidUntil) error = `Cannot read date “${untilRaw}”`
-    rows.push({ line: lineNo, firstName: names.firstName, lastName: names.lastName, cellphone: phone, paidUntil, error })
+    else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) error = 'Check the email address'
+    else if (idCheck && !idCheck.ok) error = `ID number: ${idCheck.error}`
+    rows.push({ line: lineNo, firstName: names.firstName, lastName: names.lastName, cellphone: phone, paidUntil, email, idType, idNumber, error })
   })
   return rows
 }

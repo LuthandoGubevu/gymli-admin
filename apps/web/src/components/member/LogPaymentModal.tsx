@@ -2,7 +2,7 @@ import { CalendarDays, Check, Minus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { defaultStartDate, paidUntil, periodEnd, periodLength, type PeriodKind } from '../../lib/access'
 import { formatFull, formatSmart, isValidDate, type LocalDate } from '../../lib/dates'
-import { memberCode, memberName, ROLE_LABEL, type Member, type Period } from '../../lib/types'
+import { memberCode, memberName, PAYMENT_METHOD_LABEL, PAYMENT_METHODS, ROLE_LABEL, type Member, type PaymentMethod, type Period } from '../../lib/types'
 import { ActionError, authMessage, deletePayment, editPayment, logPayment } from '../../data/actions'
 import { useStaff, useToday } from '../../data/store'
 import { Button, cx, ErrorNote, FieldLabel } from '../ui'
@@ -51,6 +51,7 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [method, setMethod] = useState<PaymentMethod | null>(null)
   const dateInput = useRef<HTMLInputElement>(null)
 
   // Reset every time the modal opens
@@ -60,6 +61,7 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
     setSaving(false)
     setConfirmDelete(false)
     setChangingStart(false)
+    setMethod(editing?.method ?? null)
     if (editing) {
       const c = choiceFor(editing)
       setChoice(c)
@@ -98,14 +100,18 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
 
   async function save() {
     if (!end) return
+    if (!method) {
+      setError('Choose how they paid')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       if (editing) {
-        await editPayment(staff, member.id, editing.id, { kind: selected.kind, qty: selected.qty, start })
+        await editPayment(staff, member.id, editing.id, { kind: selected.kind, qty: selected.qty, start, method })
         toast('Payment changed')
       } else {
-        await logPayment(staff, member.id, { kind: selected.kind, qty: selected.qty, start })
+        await logPayment(staff, member.id, { kind: selected.kind, qty: selected.qty, start, method })
         const until = paidUntil([...member.periods, { start, end }], today)
         toast(until ? `Saved · ${member.firstName} can enter until ${formatSmart(until, today)}` : 'Payment saved')
       }
@@ -207,6 +213,30 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
             </div>
           </div>
         )}
+      </div>
+
+      <div>
+        <div className="mb-10 text-13 font-medium text-muted">Paid by</div>
+        <div role="radiogroup" aria-label="Paid by" className="grid grid-cols-4 gap-10 max-md:grid-cols-2">
+          {PAYMENT_METHODS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={method === m}
+              onClick={() => {
+                setMethod(m)
+                if (error === 'Choose how they paid') setError(null)
+              }}
+              className={cx(
+                'flex h-64 items-center rounded-tile border-thick px-18 text-left text-24 leading-none font-extrabold stretch-66 transition-colors',
+                method === m ? 'border-ink bg-ink text-white' : 'border-line-10 bg-white text-ink hover:border-ink',
+              )}
+            >
+              {PAYMENT_METHOD_LABEL[m]}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-12 max-md:grid-cols-1">

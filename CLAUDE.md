@@ -40,12 +40,19 @@ Read this file before you change anything. If a request conflicts with it, ask f
 
 ## 2. Scope
 
-**In scope:** members (name, cellphone, member number `GY-1001…`, fingerprint enrolled yes/no);
-paid periods; access calendar per member; fingerprint enrolment and 1:N identification;
+**In scope:** members (name, cellphone, member number `GY-1001…`, fingerprint enrolled yes/no,
+SA ID or passport number — required for new members, date of birth (from the SA ID), email (optional),
+emergency contact, staff notes); paid periods with **how they paid** (Cash, Card, EFT, Debit order —
+method only); access calendar per member; fingerprint enrolment and 1:N identification;
 turnstile control; door log; staff logins (front desk, manager); audit trail.
 
-**Out of scope — do not build:** money amounts, payment methods, finances, debit orders,
-bookings/classes, reminders, member app.
+**Out of scope — do not build:** money amounts, totals, finances, running debit orders,
+bookings/classes, reminders, member app, address, medical information.
+
+**Personal details** live in `members/{id}/private/details` (staff) and the full ID number in
+`members/{id}/private/identity` (managers only). The check-in PC never reads either. Front desk sees
+the ID masked (last 3 characters) and cannot change an ID that is on file. Never put an ID number in
+the audit trail or logs.
 
 ## 3. Business rules (each one has unit tests — keep them passing)
 

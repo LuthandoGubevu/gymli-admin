@@ -108,7 +108,9 @@ test('acceptance: enrol, pay, scan, expire, renew, offline, unknown finger', asy
     await page.goto('/members/new')
     await page.getByLabel('First name').fill('Accept')
     await page.getByLabel('Surname').fill(`Test${suffix}`)
-    await page.getByLabel('Cellphone').fill(`082${suffix}0`.slice(0, 10))
+    await page.getByLabel('Cellphone').first().fill(`082${suffix}0`.slice(0, 10))
+    await page.getByLabel('ID number').fill('9203155108088')
+    await expect(page.getByText('✓ Valid ID')).toBeVisible()
     await page.getByRole('button', { name: 'Add member' }).last().click()
     await expect(page.getByRole('dialog', { name: 'Enrol fingerprint' })).toBeVisible()
     const subtitle = await page.getByRole('dialog').getByText(/GY-\d+/).first().textContent()
@@ -121,6 +123,7 @@ test('acceptance: enrol, pay, scan, expire, renew, offline, unknown finger', asy
     await expect(page.getByTestId('enrol-headline')).toHaveText('Fingerprint enrolled', { timeout: 20_000 })
     await page.getByRole('dialog').getByRole('button', { name: 'Log payment' }).click()
     await page.getByRole('radio', { name: /^1\s*month/ }).click()
+    await page.getByRole('radio', { name: 'Card' }).click()
     await page.getByRole('button', { name: 'Save and update access' }).click()
     await expect(page.getByText(/can enter until/)).toBeVisible()
 
@@ -139,6 +142,7 @@ test('acceptance: enrol, pay, scan, expire, renew, offline, unknown finger', asy
     // 3. Log 3 months → scan within seconds → WELCOME
     await page.getByRole('button', { name: 'Log payment' }).first().click()
     await page.getByRole('radio', { name: /^3\s*months/ }).click()
+    await page.getByRole('radio', { name: 'EFT' }).click()
     await page.getByRole('button', { name: 'Save and update access' }).click()
     const started = Date.now()
     const renewed = await scanUntil(kiosk, number, /allowed/)

@@ -68,7 +68,8 @@ service cloud.firestore {
         && p.kind in ['day', 'days', 'months']
         && p.qty is int && p.qty >= 1
         && p.start is string && p.end is string && p.start <= p.end
-        && p.loggedBy.uid == request.auth.uid;
+        && p.loggedBy.uid == request.auth.uid
+        && (!('method' in p) || p.method in ['cash', 'card', 'eft', 'debit_order']);
     }
 
     // Front desk may only add one payment at the end of the list; earlier ones stay exactly as they were.
@@ -110,6 +111,52 @@ service cloud.firestore {
         && withAudit();
 
       allow delete: if false; // removal keeps a blank record so the PC deletes its copy
+    }
+
+    // ---------- Members: personal details (never read by the check-in PC) ----------
+    function memberExistsAfter(memberId) {
+      return existsAfter(/databases/$(database)/documents/members/$(memberId))
+        && getAfter(/databases/$(database)/documents/members/$(memberId)).data.deleted == false;
+    }
+
+    // Email, date of birth, last 3 characters of the ID, emergency contact, notes: all staff.
+    match /members/{memberId}/private/details {
+      allow read: if isStaff();
+      allow create, update: if isStaff()
+        && memberExistsAfter(memberId)
+        && request.resource.data.keys().hasOnly(['email', 'dateOfBirth', 'idType', 'idLast3',
+             'emergencyName', 'emergencyPhone', 'notes', 'lastAuditId'])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 120
+        && request.resource.data.dateOfBirth is string && request.resource.data.dateOfBirth.size() <= 10
+        && (request.resource.data.idType == null || request.resource.data.idType in ['sa', 'passport'])
+        && request.resource.data.idLast3 is string && request.resource.data.idLast3.size() <= 3
+        && request.resource.data.emergencyName is string && request.resource.data.emergencyName.size() <= 80
+        && request.resource.data.emergencyPhone is string && request.resource.data.emergencyPhone.size() <= 20
+        && request.resource.data.notes is string && request.resource.data.notes.size() <= 500
+        // front desk cannot overwrite an ID that is already on file
+        && (isManager() || resource == null || resource.data.idType == null
+            || (request.resource.data.idType == resource.data.idType && request.resource.data.idLast3 == resource.data.idLast3))
+        && withAudit();
+      allow delete: if isManager();
+    }
+
+    // The full ID or passport number: read by managers only. Front desk may add one when none is on file.
+    match /members/{memberId}/private/identity {
+      allow read: if isManager();
+      allow create: if isStaff()
+        && memberExistsAfter(memberId)
+        && request.resource.data.keys().hasOnly(['idType', 'idNumber', 'lastAuditId'])
+        && request.resource.data.idType in ['sa', 'passport']
+        && request.resource.data.idNumber is string
+        && request.resource.data.idNumber.size() >= 6 && request.resource.data.idNumber.size() <= 20
+        && withAudit();
+      allow update: if isManager()
+        && request.resource.data.keys().hasOnly(['idType', 'idNumber', 'lastAuditId'])
+        && request.resource.data.idType in ['sa', 'passport']
+        && request.resource.data.idNumber is string
+        && request.resource.data.idNumber.size() >= 6 && request.resource.data.idNumber.size() <= 20
+        && withAudit();
+      allow delete: if isManager();
     }
 
     match /counters/members {
