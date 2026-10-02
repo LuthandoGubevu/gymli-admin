@@ -24,12 +24,15 @@ export const firebaseConfig: FirebaseOptions = {
 
 export const useEmulator = import.meta.env.VITE_USE_EMULATOR === '1'
 
+/** Firestore database name. Production uses the "gymli-admin" database; the emulator uses "(default)". */
+export const databaseId = import.meta.env.VITE_FIREBASE_DATABASE_ID ?? 'gymli-admin'
+
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = initializeFirestore(app, {
   // Offline cache keeps the members list instant on reload and saves reads.
   localCache: useEmulator ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-})
+}, databaseId)
 
 if (useEmulator) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })

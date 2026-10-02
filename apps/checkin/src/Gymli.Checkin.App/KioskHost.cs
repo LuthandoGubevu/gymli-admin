@@ -112,6 +112,7 @@ public sealed class KioskHost : IDisposable
             ("GYMLI_MODE", v => settings.Mode = v),
             ("GYMLI_EMULATOR_HOST", v => settings.EmulatorHost = v),
             ("GYMLI_PROJECT_ID", v => settings.FirebaseProjectId = v),
+            ("GYMLI_DATABASE_ID", v => settings.FirebaseDatabaseId = v),
             ("GYMLI_API_KEY", v => settings.FirebaseApiKey = v),
             ("GYMLI_DEVICE_EMAIL", v => settings.DeviceEmail = v),
             ("GYMLI_DEVICE_PASSWORD", v => settings.DevicePassword = v),

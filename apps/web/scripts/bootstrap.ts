@@ -17,6 +17,7 @@ const config = {
   projectId: process.env.VITE_FIREBASE_PROJECT_ID ?? 'fundanii-ai',
   appId: process.env.VITE_FIREBASE_APP_ID ?? '1:613367943903:web:3e8b371d28e464a034cf6a',
 }
+const databaseId = process.env.VITE_FIREBASE_DATABASE_ID ?? 'gymli-admin'
 
 async function main() {
   const [name, email, password] = process.argv.slice(2)
@@ -26,7 +27,7 @@ async function main() {
   }
   const app = initializeApp(config)
   const auth = getAuth(app)
-  const db = getFirestore(app)
+  const db = getFirestore(app, databaseId)
   let uid: string
   try {
     uid = (await createUserWithEmailAndPassword(auth, email, password)).user.uid
@@ -41,7 +42,7 @@ async function main() {
     await Promise.race([b.commit(), timeout])
   } catch (e) {
     if ((e as Error).message === 'timeout') {
-      console.error(`No answer from Firestore after 20 s. Check that the database "(default)" exists in the Firebase console
+      console.error(`No answer from Firestore after 20 s. Check that the database "${databaseId}" exists in the Firebase console
 (Build → Firestore Database) for project ${config.projectId}, then run: firebase deploy --only firestore`)
     } else {
       console.error('Refused: a first manager already exists. Ask them to add you in Settings.')

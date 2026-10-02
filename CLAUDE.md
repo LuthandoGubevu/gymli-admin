@@ -95,7 +95,9 @@ implementations.
 
 ## 6. Architecture (as built)
 
-- **Backend: Firebase** (project `fundanii-ai`): Firebase Auth (email/password) + Cloud Firestore.
+- **Backend: Firebase** (project `fundanii-ai`, Firestore database **`gymli-admin`** in africa-south1): Firebase Auth
+  (email/password) + Cloud Firestore. The emulator uses the `(default)` database (`VITE_FIREBASE_DATABASE_ID`, `GYMLI_DATABASE_ID`).
+  Web app hosted on Netlify (`netlify.toml`, https://gymli-admin.netlify.app).
   No server code. `firestore.rules` is the server-side guard — every protection lives there and is
   tested in `apps/web/tests/rules`. Change rules → run `npm run test:rules`.
 - **Web app** `apps/web`: React + Vite + TypeScript + Tailwind v4. Tokens: `src/styles/tokens.css`

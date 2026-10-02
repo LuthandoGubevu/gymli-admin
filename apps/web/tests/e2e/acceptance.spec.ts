@@ -24,6 +24,7 @@ class Kiosk {
         GYMLI_DATA: data,
         GYMLI_EMULATOR_HOST: '127.0.0.1',
         GYMLI_PROJECT_ID: 'demo-gymli',
+        GYMLI_DATABASE_ID: '(default)',
         GYMLI_API_KEY: 'demo-key',
         GYMLI_DEVICE_EMAIL: 'turnstile1@gymli.local',
         GYMLI_DEVICE_PASSWORD: 'gymli-demo-2026',

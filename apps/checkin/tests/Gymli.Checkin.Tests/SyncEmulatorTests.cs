@@ -23,6 +23,7 @@ public sealed class SyncEmulatorTests : IDisposable
         Mode = "simulation",
         FirebaseApiKey = "demo-key",
         FirebaseProjectId = "demo-gymli",
+        FirebaseDatabaseId = "(default)",
         EmulatorHost = "127.0.0.1",
         DeviceEmail = "turnstile1@gymli.local",
         DevicePassword = "gymli-demo-2026",
@@ -76,7 +77,7 @@ public sealed class SyncEmulatorTests : IDisposable
     public async Task WrongPassword_IsReported()
     {
         Skip.IfNot(EmulatorUp(), "Firebase emulator not running");
-        var bad = new CheckinSettings { FirebaseApiKey = "demo-key", FirebaseProjectId = "demo-gymli", EmulatorHost = "127.0.0.1", DeviceEmail = "turnstile1@gymli.local", DevicePassword = "nope" };
+        var bad = new CheckinSettings { FirebaseApiKey = "demo-key", FirebaseProjectId = "demo-gymli", FirebaseDatabaseId = "(default)", EmulatorHost = "127.0.0.1", DeviceEmail = "turnstile1@gymli.local", DevicePassword = "nope" };
         using var fs = new FirestoreClient(bad);
         var ex = await Assert.ThrowsAsync<SyncException>(() => fs.GetAsync("config/bootstrap", default));
         Assert.True(ex.AuthFailed);

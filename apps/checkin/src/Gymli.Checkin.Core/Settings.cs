@@ -12,6 +12,8 @@ public sealed class CheckinSettings
     // Firebase project (public web config) and the check-in login made in Settings → Check-in PCs
     public string FirebaseApiKey { get; set; } = "AIzaSyA_7OZFBLLvcm61zSsJt-cBF74Oqe_Gf1E";
     public string FirebaseProjectId { get; set; } = "fundanii-ai";
+    /// <summary>Firestore database name ("gymli-admin" in production, "(default)" in the emulator).</summary>
+    public string FirebaseDatabaseId { get; set; } = "gymli-admin";
     public string DeviceEmail { get; set; } = "";
     public string DevicePassword { get; set; } = "";
     /// <summary>For testing: "127.0.0.1" to use the Firebase emulator.</summary>

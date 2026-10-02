@@ -12,7 +12,7 @@ Security is enforced by `firestore.rules` (roles, front desk can only add paymen
 Project in this repo: `fundanii-ai` (`.firebaserc`). To use a new project, change `.firebaserc`, and set `VITE_FIREBASE_*` in `apps/web/.env.production` and `FirebaseApiKey/FirebaseProjectId` in the check-in `appsettings.json`.
 
 In the [Firebase console](https://console.firebase.google.com):
-1. **Build → Firestore Database → Create database**. Location: `africa-south1` (Johannesburg) if offered — keeps member data in South Africa (POPIA). The location cannot be changed later.
+1. **Build → Firestore Database → Create database**. Database ID: **`gymli-admin`** (the code, `firebase.json` and the check-in settings use this name). Location: `africa-south1` (Johannesburg) — keeps member data in South Africa (POPIA). The location cannot be changed later.
 2. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable.**
 3. Leave "Enable create (sign-up)" on: managers create logins from Settings with it. A login on its own gives no access — the rules only let in people a manager added as staff.
 4. Plan: Spark (free) is enough for the trial (≈ 35k reads and ≈ 7k writes a day with one turnstile). For ~2,000 members long-term, use Blaze (pay as you go, expected well under R50/month) and set a budget alert.

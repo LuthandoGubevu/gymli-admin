@@ -32,8 +32,8 @@ public sealed class FirestoreClient : IDisposable
 
     private string AuthBase => _s.EmulatorHost is { Length: > 0 } h ? $"http://{h}:9099/identitytoolkit.googleapis.com/v1" : "https://identitytoolkit.googleapis.com/v1";
     private string TokenBase => _s.EmulatorHost is { Length: > 0 } h ? $"http://{h}:9099/securetoken.googleapis.com/v1" : "https://securetoken.googleapis.com/v1";
-    private string DocsBase => (_s.EmulatorHost is { Length: > 0 } h ? $"http://{h}:8080/v1" : "https://firestore.googleapis.com/v1") + $"/projects/{_s.FirebaseProjectId}/databases/(default)/documents";
-    public string DocName(string path) => $"projects/{_s.FirebaseProjectId}/databases/(default)/documents/{path}";
+    private string DocsBase => (_s.EmulatorHost is { Length: > 0 } h ? $"http://{h}:8080/v1" : "https://firestore.googleapis.com/v1") + $"/projects/{_s.FirebaseProjectId}/databases/{_s.FirebaseDatabaseId}/documents";
+    public string DocName(string path) => $"projects/{_s.FirebaseProjectId}/databases/{_s.FirebaseDatabaseId}/documents/{path}";
 
     /* ---------------- Auth ---------------- */
 
