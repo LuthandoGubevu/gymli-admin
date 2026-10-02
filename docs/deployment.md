@@ -17,6 +17,15 @@ In the [Firebase console](https://console.firebase.google.com):
 3. Leave "Enable create (sign-up)" on: managers create logins from Settings with it. A login on its own gives no access — the rules only let in people a manager added as staff.
 4. Plan: Spark (free) is enough for the trial (≈ 35k reads and ≈ 7k writes a day with one turnstile). For ~2,000 members long-term, use Blaze (pay as you go, expected well under R50/month) and set a budget alert.
 
+### API key restrictions (Google Cloud console → APIs & Services → Credentials)
+
+The Firebase web key is public by design, so restrict what it can be used for:
+
+- **Web key** (the one in the web config): API restrictions = **Identity Toolkit API, Token Service API, Cloud Firestore API** only.
+  After `npm run bootstrap` has run, optionally add Website restrictions: `https://<project>.web.app/*`, `https://<project>.firebaseapp.com/*`.
+- **Check-in PC key** (optional second key, kept only in `C:\ProgramData\Gymli\appsettings.json`): Identity Toolkit API and Token Service API only; IP restriction if the gym has a fixed IP.
+- No key may be left with "None" under API restrictions, and Gymli never needs the Gemini / Firebase AI Logic APIs.
+
 ## 2. Deploy the web app and rules
 
 ```bash
