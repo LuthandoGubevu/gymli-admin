@@ -31,8 +31,25 @@ async function main() {
   let uid: string
   try {
     uid = (await createUserWithEmailAndPassword(auth, email, password)).user.uid
-  } catch {
-    uid = (await signInWithEmailAndPassword(auth, email, password)).user.uid
+  } catch (e) {
+    const code = (e as { code?: string }).code ?? ''
+    if (code !== 'auth/email-already-in-use') {
+      const hint: Record<string, string> = {
+        'auth/operation-not-allowed': 'Email/Password sign-in is off. Firebase console → Authentication → Sign-in method → Email/Password → Enable.',
+        'auth/admin-restricted-operation': 'Sign-up is switched off. Firebase console → Authentication → Settings → User actions → tick "Enable create (sign-up)".',
+        'auth/weak-password': 'Use a password of at least 8 characters.',
+        'auth/invalid-email': 'That email address is not valid.',
+        'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'The API key is restricted too far; it needs Identity Toolkit API and Token Service API.',
+      }
+      console.error(`Could not create the login (${code || (e as Error).message}). ${hint[code] ?? ''}`)
+      process.exit(1)
+    }
+    try {
+      uid = (await signInWithEmailAndPassword(auth, email, password)).user.uid
+    } catch {
+      console.error('This email already has a login with a different password. Use that password, or delete the user in Firebase console → Authentication → Users and run this again.')
+      process.exit(1)
+    }
   }
   const b = writeBatch(db)
   b.set(doc(db, 'staff', uid), { name, email: email.toLowerCase(), role: 'manager', active: true, createdAt: serverTimestamp() })
