@@ -36,10 +36,16 @@ async function main() {
   const b = writeBatch(db)
   b.set(doc(db, 'staff', uid), { name, email: email.toLowerCase(), role: 'manager', active: true, createdAt: serverTimestamp() })
   b.set(doc(db, 'config', 'bootstrap'), { uid, at: serverTimestamp() })
+  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 20_000))
   try {
-    await b.commit()
-  } catch {
-    console.error('Refused: a first manager already exists. Ask them to add you in Settings.')
+    await Promise.race([b.commit(), timeout])
+  } catch (e) {
+    if ((e as Error).message === 'timeout') {
+      console.error(`No answer from Firestore after 20 s. Check that the database "(default)" exists in the Firebase console
+(Build → Firestore Database) for project ${config.projectId}, then run: firebase deploy --only firestore`)
+    } else {
+      console.error('Refused: a first manager already exists. Ask them to add you in Settings.')
+    }
     process.exit(1)
   }
   console.log(`${name} is now a manager on ${config.projectId}. Sign in at your Gymli web address.`)
