@@ -79,7 +79,8 @@ the audit trail or logs.
 8. Only a **manager** can edit or delete a payment. Every create, edit and delete is kept in
    the audit log (who, when, before, after). Deleted payments are soft-deleted.
 9. Turnstile: on ALLOWED send one relay pulse (configurable, ~500 ms) = one entry.
-   On DENIED: no pulse. Result shows ~4 s, then back to idle.
+   On DENIED: no pulse. No screen for members by default (`"Display": "background"`); with
+   `"Display": "kiosk"` the result shows ~4 s, then back to idle.
 
 Access rules run in two places (web app in TypeScript, check-in app in C#). Both run the
 same shared test cases in `shared/test-vectors/`. Change the vectors first, then both

@@ -47,9 +47,6 @@ export function TodayPage() {
         title="Today at the gym"
         actions={
           <>
-            <Button variant="glass" size="lg" iconRight={ArrowUpRight} to="/check-in" className="max-md:hidden">
-              Open check-in screen
-            </Button>
             <Button size="lg" icon={Plus} onClick={() => setPicking(true)}>
               Log payment
             </Button>

@@ -9,6 +9,13 @@ public sealed class CheckinSettings
 
     public string DeviceName { get; set; } = "Turnstile 1";
 
+    /// <summary>
+    /// "background" (default): no screen for members, the app runs minimised on the reception PC
+    /// and members just scan their finger. "kiosk": full-screen check-in screen at the turnstile.
+    /// </summary>
+    public string Display { get; set; } = "background";
+    public bool KioskScreen => string.Equals(Display, "kiosk", StringComparison.OrdinalIgnoreCase);
+
     // Firebase project (public web config) and the check-in login made in Settings → Check-in PCs
     public string FirebaseApiKey { get; set; } = "AIzaSyA_7OZFBLLvcm61zSsJt-cBF74Oqe_Gf1E";
     public string FirebaseProjectId { get; set; } = "fundanii-ai";

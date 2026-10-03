@@ -1,4 +1,4 @@
-import { ChevronDown, Fingerprint, House, LogOut, Plus, ScrollText, Search, Settings, Users, type LucideIcon } from 'lucide-react'
+import { ChevronDown, House, LogOut, Plus, ScrollText, Search, Settings, Users, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { logOut, useGym, useNow, useStaff } from '../../data/store'
@@ -15,7 +15,6 @@ interface NavItem {
 const NAV: NavItem[] = [
   { to: '/', label: 'Today', icon: House, end: true },
   { to: '/members', label: 'Members', icon: Users },
-  { to: '/check-in', label: 'Check-in screen', icon: Fingerprint },
   { to: '/door-log', label: 'Door log', icon: ScrollText },
 ]
 
@@ -58,22 +57,30 @@ function Rail() {
 
 export function TurnstileChip({ compact }: { compact?: boolean }) {
   const { devices } = useGym()
+  const me = useStaff()
   const now = useNow()
   const device = devices.data[0]
   const online = isDeviceOnline(device, now)
   const label = devices.loading ? 'Checking turnstile' : !device ? 'No turnstile yet' : online ? 'Turnstile online' : 'Turnstile offline'
-  return (
-    <Link
-      to="/check-in"
-      className={cx(
-        'flex h-44 items-center gap-8 rounded-full border border-glass-edge bg-glass text-13 font-medium text-ink-2',
-        compact ? 'px-14' : 'px-16',
-      )}
-      title={label}
-    >
+  const className = cx(
+    'flex h-44 items-center gap-8 rounded-full border border-glass-edge bg-glass text-13 font-medium text-ink-2',
+    compact ? 'px-14' : 'px-16',
+  )
+  const content = (
+    <>
       <span className={cx('size-8 rounded-full', online ? 'bg-green-mark' : devices.loading ? 'bg-dot' : 'bg-red')} />
       <span className={cx(compact && 'max-md:sr-only')}>{label}</span>
+    </>
+  )
+  // Managers can open the turnstile details in Settings
+  return me.role === 'manager' ? (
+    <Link to="/settings#turnstile" className={className} title={label}>
+      {content}
     </Link>
+  ) : (
+    <span className={className} title={label}>
+      {content}
+    </span>
   )
 }
 

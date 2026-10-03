@@ -51,7 +51,6 @@ const SHOTS: Shot[] = [
   },
   { key: 'mobile-profile', design: '07 Mobile profile', path: (ids) => `/members/${ids.lerato}` },
   { key: 'door-log', path: () => '/door-log' },
-  { key: 'check-in', path: () => '/check-in' },
   { key: 'settings', path: () => '/settings' },
 ]
 

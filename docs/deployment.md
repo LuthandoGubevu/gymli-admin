@@ -3,7 +3,7 @@
 Gymli has two parts:
 
 - **Web app** (staff, any browser) — static site on **Firebase Hosting**, data in **Cloud Firestore**, logins with **Firebase Auth**. No server of our own.
-- **Gymli Check-in** (reception PC, Windows 10/11) — full-screen kiosk. Talks to Firestore with its own check-in login. Keeps a local copy, so the turnstile works without internet.
+- **Gymli Check-in** (reception PC, Windows 10/11) — runs in the background (no screen for members; they just scan their finger). Optional full-screen check-in screen: `"Display": "kiosk"`. Talks to Firestore with its own check-in login. Keeps a local copy, so the turnstile works without internet.
 
 Security is enforced by `firestore.rules` (roles, front desk can only add payments, every member change needs an audit entry, templates readable only by the check-in PC). Tests: `npm run test:rules`.
 
@@ -65,7 +65,7 @@ On the reception PC (Windows 10/11, its own local user that signs in automatical
 5. **Back up the fingerprint key** (needed to move to a new PC without re-enrolling everyone):
    `"C:\Program Files\Gymli\Checkin\Gymli.Checkin.exe" --export-key` → store in the manager's password manager.
    On a replacement PC: `Gymli.Checkin.exe --import-key <key>` before first start.
-6. Restart. The kiosk opens full screen. **Ctrl+Shift+Q** closes it (staff). Logs: `C:\ProgramData\Gymli\logs`.
+6. Restart. Gymli Check-in starts minimised in the taskbar (the X button only minimises it). **Ctrl+Shift+Q** closes it (staff). Logs: `C:\ProgramData\Gymli\logs`.
 
 Updating: run `publish.sh`, copy the folder, run `install.ps1` again (settings, data and key are kept).
 

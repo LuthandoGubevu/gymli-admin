@@ -14,11 +14,11 @@
 - [ ] USB relay plugged in; COM port noted
 - [ ] `install.ps1` run; `appsettings.json`: `"Mode": "hardware"`, check-in email/password, `RelayPort`
 - [ ] `--export-key` done and key stored by the manager
-- [ ] Restart → kiosk opens full screen, pill says **Online · synced**
+- [ ] Restart → Gymli Check-in starts minimised in the taskbar; open it, pill says **Online · synced**
 
 **Turnstile**
 - [ ] Power off; relay COM/NO → controller entry input; power on
-- [ ] Web app → Check-in screen: reader ✓, relay ✓, online ✓
+- [ ] Web app → Settings → Check-in PCs: reader ✓, relay ✓, online ✓
 
 **Acceptance test (do all five, tick each)**
 1. [ ] Add a test member → Enrol (4 scans) → Log 1 month → scan → **WELCOME** and the arm turns once
@@ -29,6 +29,6 @@
 - [ ] Remove the test member (manager) — erases the fingerprint everywhere
 
 **During the 5 days**
-- [ ] Each morning: Today screen opens; Check-in screen shows online; no "scans waiting to upload"
+- [ ] Each morning: Today screen opens; turnstile chip says online; no "scans waiting to upload"
 - [ ] Problems → note the time; logs are in `C:\ProgramData\Gymli\logs`
 - [ ] If the PC fails: the turnstile's manual key / free-entry switch is the fallback (agree this with the gym first)

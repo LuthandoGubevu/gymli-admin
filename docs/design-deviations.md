@@ -5,10 +5,10 @@ Checked with `npm run visual` (web, 1440 and 390) and `Gymli.Checkin --screensho
 
 | Where | Design | Built | Why |
 |---|---|---|---|
-| Top nav + rail | 3 items: Today, Members, Check-in screen | 4th item **Door log** (scroll icon) | The brief requires a Door log screen; the design has none. Same pill/rail style. |
+| Top nav + rail | 3 items: Today, Members, Check-in screen | Today, Members, **Door log** (scroll icon) | The brief requires a Door log screen; the design has none. Check-in screen removed (see below). Same pill/rail style. |
 | Rail | Settings icon for everyone | Settings shown to **managers only** | Only managers manage staff, import and audit. |
 | Top nav search | Empty grey circle | Search icon; opens Members with the search box focused | Design shows an unlabelled circle; a search icon makes its job clear. |
-| "Check-in screen" (web) | Kiosk is shown as a screen of the product | Web page = live mirror of the turnstile (last result, online, reader/relay, latest scans) | The real kiosk is the Windows app at reception; the web page shows its status. |
+| "Check-in screen" (05a–c) | Kiosk is shown as a screen of the product | No check-in screen by default: members only scan their finger. The web page is removed; turnstile status (online, reader, relay) is in Settings → Check-in PCs and the header chip; scans are on Today and Door log. The kiosk screens stay available with `"Display": "kiosk"`. | Gym's decision (Oct 2026): no screen at the turnstile. |
 | Log payment → "Logged by" | Dropdown with chevron | Fixed to the signed-in person, no chevron | Audit trail: a payment is always logged by whoever is signed in. |
 | Log payment → Custom | Only the "— Custom" tile is shown | Selecting it shows a Days/Months switch and a −/+ stepper below the grid | The design says "custom stepper works" but does not draw it; built from the existing segmented-pill and field styles. |
 | Log payment (manager editing) | — | Same modal, title "Change payment for", plus **Delete payment** | Managers can edit/delete payments (brief). |

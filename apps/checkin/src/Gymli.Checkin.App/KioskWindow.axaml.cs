@@ -18,6 +18,7 @@ public partial class KioskWindow : Window
     private readonly DispatcherTimer _tick;
     private DispatcherTimer? _resultTimer;
     private bool _enrolling;
+    private bool _quitting;
     private readonly List<string> _simLog = new();
 
     // Designer / screenshot constructor
@@ -39,13 +40,27 @@ public partial class KioskWindow : Window
         Log.Written += line => Dispatcher.UIThread.Post(() => AddSimLog(line));
 
         if (host.Settings.Simulation) SetupSimulation(host);
-        else
+        else if (host.Settings.KioskScreen)
         {
             // Kiosk: full screen, always on top, no window chrome
             WindowState = WindowState.FullScreen;
             Topmost = true;
             SystemDecorations = SystemDecorations.None;
             Cursor = new Cursor(StandardCursorType.None);
+        }
+        else
+        {
+            // Background: members only scan their finger. The window stays minimised on the
+            // reception PC; staff can open it from the taskbar to see its status.
+            Title = $"Gymli Check-in · {host.Settings.DeviceName}";
+            WindowState = WindowState.Minimized;
+            // The X button minimises, so the turnstile keeps working. Ctrl+Shift+Q quits.
+            Closing += (_, e) =>
+            {
+                if (_quitting || e.CloseReason != WindowCloseReason.WindowClosing) return;
+                e.Cancel = true;
+                WindowState = WindowState.Minimized;
+            };
         }
         KeyDown += OnKey;
         _tick.Start();
@@ -55,7 +70,11 @@ public partial class KioskWindow : Window
     private void OnKey(object? sender, KeyEventArgs e)
     {
         // Staff only: Ctrl+Shift+Q closes the kiosk, F2 shows the simulation panel
-        if (e.Key == Key.Q && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift)) Close();
+        if (e.Key == Key.Q && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            _quitting = true;
+            Close();
+        }
         if (e.Key == Key.F2 && _host?.Settings.Simulation == true) SimPanel.IsVisible = !SimPanel.IsVisible;
         if (e.Key == Key.F11) WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;
     }

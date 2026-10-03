@@ -1,6 +1,7 @@
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
-import { Check, FileUp, KeyRound, MonitorSmartphone, Plus, UserPlus } from 'lucide-react'
+import { Check, FileUp, KeyRound, MonitorSmartphone, Plus, Usb, UserPlus, WifiOff } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Avatar, Button, Card, CardTitle, cx, EmptyState, ErrorNote, PageHeader, Pill, SkeletonRows, TextField } from '../components/ui'
 import { Modal } from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
@@ -10,7 +11,7 @@ import { useGym, useNow, useStaff, useToday } from '../data/store'
 import { importedPeriod, parseMemberCsv, type ImportRow } from '../lib/csvImport'
 import { dateAtGym, formatDayMonth, formatSmart, timeAtGym } from '../lib/dates'
 import { db } from '../lib/firebase'
-import { initials, isDeviceOnline, ROLE_LABEL, type AuditEntry, type Role, type Staff } from '../lib/types'
+import { initials, isDeviceOnline, ROLE_LABEL, type AuditEntry, type Device, type Role, type Staff } from '../lib/types'
 
 export function SettingsPage() {
   const me = useStaff()
@@ -89,7 +90,13 @@ function DevicesCard() {
   const now = useNow()
   const [adding, setAdding] = useState(false)
   const logins = staffList.data.filter((s) => s.role === 'device')
+  const ref = useRef<HTMLDivElement>(null)
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (hash === '#turnstile') ref.current?.scrollIntoView({ block: 'start' })
+  }, [hash])
   return (
+    <div ref={ref} id="turnstile" className="scroll-mt-24">
     <Card className="p-28 max-md:p-18">
       <div className="mb-10 flex items-center gap-14">
         <CardTitle size={32}>Check-in PCs</CardTitle>
@@ -107,7 +114,8 @@ function DevicesCard() {
           const d = devices.data.find((x) => x.id === s.uid)
           const online = isDeviceOnline(d, now)
           return (
-            <div key={s.uid} className="flex items-center gap-14 border-t border-line-6 py-12">
+            <div key={s.uid} className="border-t border-line-6">
+              <div className="flex items-center gap-14 py-12">
               <span className={cx('flex size-42 items-center justify-center rounded-full', online ? 'bg-green-soft text-green-deep' : 'bg-chip')}>
                 <MonitorSmartphone size={18} />
               </span>
@@ -118,12 +126,41 @@ function DevicesCard() {
                 </div>
               </div>
               <Pill tone={online ? 'green' : 'neutral'} size="sm">{online ? 'Online' : 'Offline'}</Pill>
+              </div>
+              {d && <DeviceStatus device={d} />}
             </div>
           )
         })
       )}
       <NewLoginModal role={adding ? 'device' : null} onClose={() => setAdding(false)} />
     </Card>
+    </div>
+  )
+}
+
+/** Reader, relay and upload status reported by the check-in PC. */
+function DeviceStatus({ device }: { device: Device }) {
+  const sim = device.mode === 'simulation'
+  return (
+    <div className="mb-8 ml-56 max-md:ml-0">
+      <StatusLine ok={device.readerConnected} label={device.readerConnected ? 'Fingerprint reader connected' : 'Fingerprint reader not found'} detail={sim ? 'Simulation mode' : 'DigitalPersona 4500'} />
+      <StatusLine ok={device.relayConnected} label={device.relayConnected ? 'Turnstile relay connected' : 'Turnstile relay not found'} detail={sim ? 'Simulated pulses' : 'USB relay'} relay />
+      <StatusLine ok={device.pendingLogs === 0} label={device.pendingLogs === 0 ? 'Door log up to date' : `${device.pendingLogs} scans waiting to upload`} detail={device.appVersion ? `App ${device.appVersion}` : ''} />
+    </div>
+  )
+}
+
+function StatusLine({ ok, label, detail, relay }: { ok: boolean; label: string; detail: string; relay?: boolean }) {
+  return (
+    <div className="flex items-center gap-12 py-8">
+      <span className={cx('flex size-32 shrink-0 items-center justify-center rounded-full', ok ? 'bg-green-soft text-green-deep' : 'bg-red-soft text-red-deep')}>
+        {ok ? <Check size={15} strokeWidth={2.5} /> : relay ? <Usb size={15} /> : <WifiOff size={15} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <span className="text-14 font-semibold">{label}</span>
+        {detail && <span className="ml-8 text-13 text-muted">{detail}</span>}
+      </div>
+    </div>
   )
 }
 
