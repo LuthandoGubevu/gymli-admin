@@ -15,6 +15,7 @@
     "emulators": "firebase emulators:start --only firestore,auth --project demo-gymli",
     "seed": "tsx scripts/seed.ts",
     "bootstrap": "tsx scripts/bootstrap.ts",
+    "demo": "tsx scripts/demo.ts",
     "e2e": "playwright test",
     "visual": "tsx tests/visual/compare.ts",
     "deploy": "npm run build && firebase deploy --only hosting,firestore"
