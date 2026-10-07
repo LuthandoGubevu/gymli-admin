@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogPaymentModal } from '../components/member/LogPaymentModal'
 import { MemberPicker } from '../components/member/MemberPicker'
+import { PaymentsToday } from '../components/PaymentsToday'
 import { Avatar, Button, Card, CardTitle, CountBadge, cx, Dot, EmptyState, ErrorNote, IconButton, PageHeader, SkeletonRows } from '../components/ui'
 import { useGym, useToday } from '../data/store'
 import { URGENT_DAYS } from '../lib/access'
@@ -97,6 +98,8 @@ export function TodayPage() {
           </div>
         )}
       </Card>
+
+      <PaymentsToday />
 
       <div className="grid grid-cols-2 items-stretch gap-16 max-lg:grid-cols-1">
         <Card className="p-28 max-md:p-18">

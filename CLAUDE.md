@@ -43,14 +43,18 @@ Read this file before you change anything. If a request conflicts with it, ask f
 
 **In scope:** members (name, cellphone, member number `GY-1001…`, fingerprint enrolled yes/no,
 SA ID or passport number — required for new members, date of birth (from the SA ID), email (optional),
-emergency contact, staff notes); paid periods with **how they paid** (Cash, Card, EFT, Debit order —
-method only); access calendar per member; fingerprint enrolment and 1:N identification;
+emergency contact, staff notes); paid periods with **how they paid** (Cash, Card, EFT, Debit order)
+and the **amount paid** (cents, pre-filled from a per-branch price list, editable, audited); access calendar per member; fingerprint enrolment and 1:N identification;
 turnstile control; door log; staff logins (front desk, manager); audit trail;
 **branches**: managers add branches and switch between them; front desk and check-in PCs belong to
 one branch and only see it; a member belongs to one home branch (other branches turn them away).
 
-**Out of scope — do not build:** money amounts, totals, finances, running debit orders,
-bookings/classes, reminders, member app, address, medical information.
+**Accounts (managers only):** payments by date range and branch, totals by method, new vs renewals,
+daily cash-up, branch comparison, renewals due, busiest hours; Excel and PDF exports. Front desk see
+amounts on payments (their own today on Today, and on member payment lists), never Accounts.
+
+**Out of scope — do not build:** running debit orders, invoicing/billing, refunds, bookings/classes,
+reminders, member app, address, medical information.
 
 **Personal details** live in `members/{id}/private/details` (staff) and the full ID number in
 `members/{id}/private/identity` (managers only). The check-in PC never reads either. Front desk sees
@@ -121,6 +125,8 @@ implementations.
 - Firestore data: `branches`, `members` (with `periods` array, soft-deleted payments), `templates` (ciphertext only),
   `doorLogs` (written by the PC only), `devices` (heartbeat), `enrolRequests`, `staff`, `audit` (add-only),
   `counters/members` (one GY-number sequence across branches), `config/bootstrap`.
+- Money: `period.amountCents`, `branches/{id}.prices` (`day`, `m1`, `m3`, `m6`, `m12` in cents). Reports are
+  pure functions in `src/lib/accounts.ts` (unit-tested); exports in `src/lib/export.ts` (exceljs, jspdf, lazy-loaded).
 - Branches: one database; every branch-owned doc (`members`, `doorLogs`, `devices`, `enrolRequests`) has
   `branchId`, and `staff.branchId` (null for managers = all branches). `firestore.rules` enforces it
   (front desk queries must filter on `branchId`). The check-in PC reads its branch from its own `staff` doc

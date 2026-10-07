@@ -5,6 +5,7 @@ import { MemberFormModal } from './components/member/MemberFormModal'
 import { Spinner } from './components/ui'
 import { ToastProvider } from './components/ui/Toast'
 import { AuthProvider, GymDataProvider, useAuth } from './data/store'
+import { AccountsPage } from './pages/AccountsPage'
 import { DoorLogPage } from './pages/DoorLogPage'
 import { LoginPage } from './pages/LoginPage'
 import { MemberProfilePage } from './pages/MemberProfilePage'
@@ -42,6 +43,7 @@ function Gate() {
             <Route path="/members/:id" element={<MemberProfilePage />} />
             <Route path="/door-log" element={<DoorLogPage />} />
             <Route path="/check-in" element={<Navigate to="/" replace />} />
+            <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

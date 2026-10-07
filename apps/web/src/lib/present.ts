@@ -1,4 +1,5 @@
 /** Wording and colours for statuses, in the design's tone. */
+import { formatRand } from './accounts'
 import { memberStatus, periodLabel, type StatusInfo } from './access'
 import { dateAtGym, diffDays, formatDayMonth, formatFull, formatSmart, timeAtGym, type LocalDate } from './dates'
 import { PAYMENT_METHOD_LABEL, type Member, type Period } from './types'
@@ -58,8 +59,9 @@ export function lastPaymentText(p: Period | null): string {
 /** "logged by Zodwa, 8 Sep 07:12" */
 export function loggedByText(p: Period): string {
   const first = p.loggedBy.name.split(' ')[0]
+  const amount = typeof p.amountCents === 'number' ? `${formatRand(p.amountCents)} · ` : ''
   const method = p.method ? `${PAYMENT_METHOD_LABEL[p.method]} · ` : ''
-  return `${method}logged by ${first}, ${formatDayMonth(dateAtGym(p.loggedAt))} ${timeAtGym(p.loggedAt)}`
+  return `${amount}${method}logged by ${first}, ${formatDayMonth(dateAtGym(p.loggedAt))} ${timeAtGym(p.loggedAt)}`
 }
 
 export const longDate = formatFull

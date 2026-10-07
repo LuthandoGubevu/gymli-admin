@@ -1,10 +1,11 @@
 import { CalendarDays, Check, Minus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { defaultStartDate, paidUntil, periodEnd, periodLength, type PeriodKind } from '../../lib/access'
+import { defaultStartDate, paidUntil, periodEnd, periodLabel, periodLength, type PeriodKind } from '../../lib/access'
 import { formatFull, formatSmart, isValidDate, type LocalDate } from '../../lib/dates'
 import { memberCode, memberName, PAYMENT_METHOD_LABEL, PAYMENT_METHODS, ROLE_LABEL, type Member, type PaymentMethod, type Period } from '../../lib/types'
 import { ActionError, authMessage, deletePayment, editPayment, logPayment } from '../../data/actions'
-import { useStaff, useToday } from '../../data/store'
+import { useGym, useStaff, useToday } from '../../data/store'
+import { formatRand, parseRand, priceFor } from '../../lib/accounts'
 import { Button, cx, ErrorNote, FieldLabel } from '../ui'
 import { Modal } from '../ui/Modal'
 import { useToast } from '../ui/Toast'
@@ -37,6 +38,8 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
   const staff = useStaff()
   const today = useToday()
   const toast = useToast()
+  const { branches } = useGym()
+  const prices = branches.data.find((b) => b.id === member.branchId)?.prices
   const name = memberName(member)
 
   const otherPeriods = useMemo(() => member.periods.filter((p) => p.id !== editing?.id), [member.periods, editing])
@@ -52,6 +55,8 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [method, setMethod] = useState<PaymentMethod | null>(null)
+  const [amountText, setAmountText] = useState('')
+  const [amountTouched, setAmountTouched] = useState(false)
   const dateInput = useRef<HTMLInputElement>(null)
 
   // Reset every time the modal opens
@@ -62,6 +67,8 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
     setConfirmDelete(false)
     setChangingStart(false)
     setMethod(editing?.method ?? null)
+    setAmountTouched(!!editing)
+    setAmountText(editing && typeof editing.amountCents === 'number' ? centsToInput(editing.amountCents) : '')
     if (editing) {
       const c = choiceFor(editing)
       setChoice(c)
@@ -85,6 +92,21 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
   const startOk = isValidDate(start)
   const end = startOk && selected.qty >= 1 ? periodEnd(selected.kind, selected.qty, start) : null
   const length = end ? periodLength(start, end) : 0
+  const listPrice = priceFor(prices, selected.kind, selected.qty)
+  const amountCents = parseRand(amountText)
+
+  // Fill in the price-list amount until staff type their own
+  useEffect(() => {
+    if (!open || amountTouched) return
+    setAmountText(listPrice === null ? '' : centsToInput(listPrice))
+  }, [open, amountTouched, listPrice])
+
+  const amountHint =
+    listPrice === null
+      ? 'No price set for this length. Type the amount paid.'
+      : amountCents !== null && amountCents !== listPrice
+        ? `Price list: ${formatRand(listPrice)}. Changed by you.`
+        : 'From the price list'
 
   const startHint = editing
     ? 'Start date of this payment'
@@ -104,14 +126,20 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
       setError('Choose how they paid')
       return
     }
+    const keepEmpty = editing && editing.amountCents === undefined && amountText.trim() === ''
+    if (amountCents === null && !keepEmpty) {
+      setError('Enter the amount paid')
+      return
+    }
+    const amount = amountCents ?? undefined
     setSaving(true)
     setError(null)
     try {
       if (editing) {
-        await editPayment(staff, member.id, editing.id, { kind: selected.kind, qty: selected.qty, start, method })
+        await editPayment(staff, member.id, editing.id, { kind: selected.kind, qty: selected.qty, start, method, amountCents: amount })
         toast('Payment changed')
       } else {
-        await logPayment(staff, member.id, { kind: selected.kind, qty: selected.qty, start, method })
+        await logPayment(staff, member.id, { kind: selected.kind, qty: selected.qty, start, method, amountCents: amount })
         const until = paidUntil([...member.periods, { start, end }], today)
         toast(until ? `Saved · ${member.firstName} can enter until ${formatSmart(until, today)}` : 'Payment saved')
       }
@@ -162,7 +190,10 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
                   <span className="text-48 leading-90 font-extrabold stretch-66 tabular">{c.big}</span>
                   <span className="text-16 font-semibold">{c.unit}</span>
                 </span>
-                <span className={cx('text-13 tabular', active ? 'text-on-ink-soft' : 'text-muted')}>{until ? `until ${formatSmart(until, today)}` : ' '}</span>
+                <span className={cx('text-13 tabular', active ? 'text-on-ink-soft' : 'text-muted')}>
+                  {until ? `until ${formatSmart(until, today)}` : ' '}
+                  {priceFor(prices, c.kind, c.qty) !== null && ` · ${formatRand(priceFor(prices, c.kind, c.qty)!)}`}
+                </span>
               </button>
             )
           })}
@@ -239,6 +270,26 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
         </div>
       </div>
 
+      <div>
+        <FieldLabel htmlFor="amount">Amount paid</FieldLabel>
+        <div className="flex h-56 max-w-320 items-center gap-6 rounded-full bg-field px-20 text-17 font-semibold focus-within:outline-3 focus-within:outline-offset-3 focus-within:outline-ink">
+          <span aria-hidden>R</span>
+          <input
+            id="amount"
+            inputMode="decimal"
+            value={amountText}
+            placeholder="0"
+            onChange={(e) => {
+              setAmountTouched(true)
+              setAmountText(e.target.value)
+              if (error === 'Enter the amount paid') setError(null)
+            }}
+            className="min-w-0 flex-1 border-none bg-transparent font-semibold outline-none tabular"
+          />
+        </div>
+        <div className="mt-8 ml-20 text-12 text-muted">{amountHint}</div>
+      </div>
+
       <div className="grid grid-cols-2 gap-12 max-md:grid-cols-1">
         <div>
           <FieldLabel htmlFor="start-date">Start date</FieldLabel>
@@ -293,6 +344,23 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
         </div>
       </div>
 
+      <dl className="rounded-tile border border-line-8 px-20 py-6 text-15" aria-label="Payment summary">
+        {[
+          ['Member', `${name} · ${memberCode(member.number)}`],
+          ['Current access', currentUntil ? `Can enter until ${formatFull(currentUntil)}` : 'Cannot enter now'],
+          ['How long', periodLabel(selected.kind, selected.qty)],
+          ['Access open', end ? `${formatFull(start)} → ${formatFull(end)} · ${length} ${length === 1 ? 'day' : 'days'}` : '—'],
+          ['Paid by', method ? PAYMENT_METHOD_LABEL[method] : 'Not chosen'],
+          ['Amount', amountCents !== null ? formatRand(amountCents) : 'Not entered'],
+          ['Logged by', `${staff.name} · ${ROLE_LABEL[staff.role]}`],
+        ].map(([k, v]) => (
+          <div key={k} className="flex gap-12 border-t border-line-6 py-10 first:border-t-0">
+            <dt className="w-128 shrink-0 text-muted">{k}</dt>
+            <dd className="min-w-0 flex-1 font-semibold tabular">{v}</dd>
+          </div>
+        ))}
+      </dl>
+
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <div className="flex flex-wrap justify-end gap-10">
@@ -315,4 +383,9 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
       </div>
     </Modal>
   )
+}
+
+/** 45000 → "450", 45050 → "450.50" (what goes in the amount box) */
+function centsToInput(cents: number): string {
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2)
 }

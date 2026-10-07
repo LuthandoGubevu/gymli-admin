@@ -386,3 +386,34 @@ describe('branches', () => {
     }))
   })
 })
+
+describe('amounts and prices', () => {
+  it('front desk can log a payment with an amount in cents', async () => {
+    const f = db('desk')
+    await assertSucceeds(withAudit(f, 'desk', 'front_desk', (id, tx) =>
+      tx.update(doc(f, 'members', 'm1'), { periods: [period('desk'), { ...period('desk', 'p2', '2026-11-01', '2026-11-30'), method: 'eft', amountCents: 45000 }], updatedAt: serverTimestamp(), lastAuditId: id })))
+  })
+
+  it('amounts must be whole cents and not negative', async () => {
+    const f = db('desk')
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) =>
+      tx.update(doc(f, 'members', 'm1'), { periods: [period('desk'), { ...period('desk', 'p2'), amountCents: -100 }], updatedAt: serverTimestamp(), lastAuditId: id })))
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) =>
+      tx.update(doc(f, 'members', 'm1'), { periods: [period('desk'), { ...period('desk', 'p3'), amountCents: 450.5 }], updatedAt: serverTimestamp(), lastAuditId: id })))
+  })
+
+  it('front desk cannot change the amount of an existing payment', async () => {
+    const f = db('desk')
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) =>
+      tx.update(doc(f, 'members', 'm1'), { periods: [{ ...period('desk'), amountCents: 1 }], updatedAt: serverTimestamp(), lastAuditId: id })))
+  })
+
+  it('only managers set prices', async () => {
+    const prices = { day: 8000, m1: 45000, m3: 120000, m6: null, m12: 400000 }
+    const m = db('mgr')
+    await assertSucceeds(withAudit(m, 'mgr', 'manager', (id, tx) => tx.update(doc(m, 'branches', 'b1'), { prices, lastAuditId: id })))
+    const f = db('desk')
+    await assertFails(withAudit(f, 'desk', 'front_desk', (id, tx) => tx.update(doc(f, 'branches', 'b1'), { prices, lastAuditId: id })))
+    await assertFails(withAudit(m, 'mgr', 'manager', (id, tx) => tx.update(doc(m, 'branches', 'b1'), { prices: { m1: 'cheap' }, lastAuditId: id })))
+  })
+})

@@ -25,9 +25,14 @@ export interface Staff {
   branchId: string | null
 }
 
+export type PriceKey = 'day' | 'm1' | 'm3' | 'm6' | 'm12'
+/** Price list per branch, in cents. A missing price means staff type the amount. */
+export type Prices = Partial<Record<PriceKey, number | null>>
+
 export interface Branch {
   id: string
   name: string
+  prices: Prices
 }
 
 export interface Period {
@@ -42,8 +47,10 @@ export interface Period {
   deleted?: boolean
   changedBy?: Actor
   changedAt?: number
-  /** How they paid (no amounts are recorded). Missing on older or imported payments. */
+  /** How they paid. Missing on older or imported payments. */
   method?: PaymentMethod
+  /** Amount paid in cents (R450 = 45000). Missing on older or imported payments. */
+  amountCents?: number
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'eft' | 'debit_order'

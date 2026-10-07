@@ -22,7 +22,8 @@ import { periodEnd, periodLabel, type PeriodKind } from '../lib/access'
 import { formatDayMonth, isValidDate, type LocalDate } from '../lib/dates'
 import { db, firebaseConfig, useEmulator } from '../lib/firebase'
 import { checkId, checkSaId, cleanId, type IdType } from '../lib/idNumber'
-import { memberCode, type Member, type MemberDetails, type MemberIdentity, type PaymentMethod, type Period, type Role, type Staff } from '../lib/types'
+import { formatRand } from '../lib/accounts'
+import { memberCode, PAYMENT_METHOD_LABEL, type Prices, type Member, type MemberDetails, type MemberIdentity, type PaymentMethod, type Period, type Role, type Staff } from '../lib/types'
 import { toMember } from './convert'
 
 export class ActionError extends Error {}
@@ -265,6 +266,8 @@ export interface PaymentInput {
   start: LocalDate
   /** How they paid. Optional only for imports. */
   method?: PaymentMethod
+  /** Amount paid, in cents. Optional only for imports. */
+  amountCents?: number
 }
 
 export function checkPayment(p: PaymentInput): string | null {
@@ -272,11 +275,18 @@ export function checkPayment(p: PaymentInput): string | null {
   if (!Number.isInteger(p.qty) || p.qty < 1) return 'Choose how long'
   if (p.kind === 'days' && p.qty > 366) return 'Up to 366 days'
   if (p.kind === 'months' && p.qty > 24) return 'Up to 24 months'
+  if (p.amountCents !== undefined && (!Number.isInteger(p.amountCents) || p.amountCents < 0 || p.amountCents > 10_000_000)) return 'Enter the amount paid'
   return null
 }
 
-const periodSummary = (p: Pick<Period, 'kind' | 'qty' | 'start' | 'end'>) =>
-  `${periodLabel(p.kind, p.qty)}, ${formatDayMonth(p.start)} → ${formatDayMonth(p.end)}`
+const periodSummary = (p: Pick<Period, 'kind' | 'qty' | 'start' | 'end' | 'method' | 'amountCents'>) =>
+  [
+    `${periodLabel(p.kind, p.qty)}, ${formatDayMonth(p.start)} → ${formatDayMonth(p.end)}`,
+    p.method ? PAYMENT_METHOD_LABEL[p.method] : null,
+    typeof p.amountCents === 'number' ? formatRand(p.amountCents) : null,
+  ]
+    .filter(Boolean)
+    .join(', ')
 
 export async function logPayment(staff: Staff, memberId: string, input: PaymentInput): Promise<Period> {
   const err = checkPayment(input)
@@ -295,6 +305,7 @@ export async function logPayment(staff: Staff, memberId: string, input: PaymentI
       loggedBy: actorOf(staff),
       loggedAt: Date.now(),
       ...(input.method ? { method: input.method } : {}),
+      ...(input.amountCents !== undefined ? { amountCents: input.amountCents } : {}),
     }
     const auditId = writeAudit(tx, staff, {
       action: 'payment.create',
@@ -328,6 +339,7 @@ export async function editPayment(staff: Staff, memberId: string, periodId: stri
       start: input.start,
       end: periodEnd(input.kind, qty, input.start),
       ...(input.method ? { method: input.method } : {}),
+      ...(input.amountCents !== undefined ? { amountCents: input.amountCents } : {}),
       changedBy: actorOf(staff),
       changedAt: Date.now(),
     }
@@ -492,6 +504,17 @@ export async function renameBranch(manager: Staff, id: string, from: string, nam
   await runTransaction(db, async (tx) => {
     const auditId = writeAudit(tx, manager, { action: 'branch.rename', entity: 'branch', entityId: id, summary: `Renamed branch ${from} to ${n}`, before: { name: from }, after: { name: n } })
     tx.update(ref, { name: n, lastAuditId: auditId })
+  })
+}
+
+/** Saves a branch's price list (cents; null = no fixed price). */
+export async function setBranchPrices(manager: Staff, branchId: string, branchName: string, before: Prices, prices: Prices): Promise<void> {
+  if (manager.role !== 'manager') throw new ActionError('Only a manager can change prices')
+  for (const v of Object.values(prices)) if (v !== null && v !== undefined && (!Number.isInteger(v) || v < 0 || v > 10_000_000)) throw new ActionError('Check the prices')
+  const ref = doc(db, 'branches', branchId)
+  await runTransaction(db, async (tx) => {
+    const auditId = writeAudit(tx, manager, { action: 'branch.prices', entity: 'branch', entityId: branchId, summary: `Changed prices for ${branchName}`, before, after: prices })
+    tx.update(ref, { prices, lastAuditId: auditId })
   })
 }
 

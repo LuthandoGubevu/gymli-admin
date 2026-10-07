@@ -1,17 +1,18 @@
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
-import { Building2, Check, FileUp, KeyRound, MonitorSmartphone, Pencil, Plus, Usb, UserPlus, WifiOff } from 'lucide-react'
+import { Building2, Check, Tag, FileUp, KeyRound, MonitorSmartphone, Pencil, Plus, Usb, UserPlus, WifiOff } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Avatar, Button, Card, CardTitle, cx, EmptyState, ErrorNote, PageHeader, Pill, SkeletonRows, TextField } from '../components/ui'
 import { Modal } from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
-import { addBranch, addMember, authMessage, EMPTY_MEMBER_INPUT, createStaff, logPayment, renameBranch, setStaffActive, type NewStaffInput } from '../data/actions'
+import { addBranch, addMember, authMessage, EMPTY_MEMBER_INPUT, createStaff, logPayment, renameBranch, setBranchPrices, setStaffActive, type NewStaffInput } from '../data/actions'
 import { toAudit } from '../data/convert'
 import { useGym, useNow, useStaff, useToday } from '../data/store'
 import { importedPeriod, parseMemberCsv, type ImportRow } from '../lib/csvImport'
 import { dateAtGym, formatDayMonth, formatSmart, timeAtGym } from '../lib/dates'
 import { db } from '../lib/firebase'
-import { initials, isDeviceOnline, ROLE_LABEL, type AuditEntry, type Branch, type Device, type Role, type Staff } from '../lib/types'
+import { formatRand, parseRand, PRICE_KEYS, PRICE_LABEL } from '../lib/accounts'
+import { initials, isDeviceOnline, ROLE_LABEL, type AuditEntry, type Branch, type Prices, type Device, type Role, type Staff } from '../lib/types'
 
 export function SettingsPage() {
   const me = useStaff()
@@ -40,6 +41,7 @@ function BranchesCard() {
   const toast = useToast()
   const { branches } = useGym()
   const [editing, setEditing] = useState<Branch | 'new' | null>(null)
+  const [pricing, setPricing] = useState<Branch | null>(null)
   return (
     <Card className="p-28 max-md:p-18">
       <div className="mb-10 flex items-center gap-14">
@@ -57,13 +59,24 @@ function BranchesCard() {
             <span className="flex size-42 items-center justify-center rounded-full bg-chip">
               <Building2 size={18} />
             </span>
-            <div className="min-w-0 flex-1 truncate text-16 font-semibold">{b.name}</div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-16 font-semibold">{b.name}</div>
+              <div className="mt-2 truncate text-13 text-muted tabular">
+                {PRICE_KEYS.some((k) => typeof b.prices[k] === 'number')
+                  ? PRICE_KEYS.filter((k) => typeof b.prices[k] === 'number').map((k) => `${PRICE_LABEL[k]} ${formatRand(b.prices[k]!)}`).join(' · ')
+                  : 'No prices set'}
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" icon={Tag} onClick={() => setPricing(b)}>
+              Prices
+            </Button>
             <Button variant="ghost" size="sm" icon={Pencil} onClick={() => setEditing(b)}>
               Rename
             </Button>
           </div>
         ))
       )}
+      <PricesModal branch={pricing} onClose={() => setPricing(null)} />
       <BranchModal
         branch={editing}
         onClose={() => setEditing(null)}
@@ -79,6 +92,63 @@ function BranchesCard() {
         }}
       />
     </Card>
+  )
+}
+
+function PricesModal({ branch, onClose }: { branch: Branch | null; onClose: () => void }) {
+  const me = useStaff()
+  const toast = useToast()
+  const [text, setText] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!branch) return
+    setText(Object.fromEntries(PRICE_KEYS.map((k) => [k, typeof branch.prices[k] === 'number' ? String(branch.prices[k]! / 100) : ''])))
+    setError(null)
+    setBusy(false)
+  }, [branch])
+
+  async function save() {
+    if (!branch) return
+    const prices: Prices = {}
+    for (const k of PRICE_KEYS) {
+      const t = (text[k] ?? '').trim()
+      if (!t) {
+        prices[k] = null
+        continue
+      }
+      const c = parseRand(t)
+      if (c === null) return setError(`Check the price for ${PRICE_LABEL[k].toLowerCase()}`)
+      prices[k] = c
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await setBranchPrices(me, branch.id, branch.name, branch.prices, prices)
+      toast('Prices saved')
+      onClose()
+    } catch (e) {
+      setError(authMessage(e))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open={!!branch} onClose={onClose} locked={busy} width="md" eyebrow={branch?.name ?? 'Branch'} title="Prices">
+      <div className="flex flex-col gap-16">
+        <div className="text-15 text-ink-2">These fill in the amount when a payment is logged. Staff can still change it. Leave a price empty to type the amount each time.</div>
+        <div className="grid grid-cols-2 gap-12 max-md:grid-cols-1">
+          {PRICE_KEYS.map((k) => (
+            <TextField key={k} label={PRICE_LABEL[k]} inputMode="decimal" placeholder="R" value={text[k] ?? ''} onChange={(e) => setText((t) => ({ ...t, [k]: e.target.value }))} />
+          ))}
+        </div>
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-10">
+          <Button variant="ghost" size="xl" className="border-line-14 px-26" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="xl" icon={Check} loading={busy} onClick={save}>Save prices</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

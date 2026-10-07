@@ -1,5 +1,5 @@
 import { Timestamp, type DocumentData } from 'firebase/firestore'
-import type { Branch, Device, DoorLog, EnrolRequest, Member, Period, Staff, AuditEntry } from '../lib/types'
+import type { Branch, Prices, Device, DoorLog, EnrolRequest, Member, Period, Staff, AuditEntry } from '../lib/types'
 
 export const ms = (v: unknown): number => {
   if (v instanceof Timestamp) return v.toMillis()
@@ -59,7 +59,7 @@ export function toDevice(id: string, d: DocumentData): Device {
 }
 
 export function toBranch(id: string, d: DocumentData): Branch {
-  return { id, name: d.name ?? '' }
+  return { id, name: d.name ?? '', prices: (d.prices ?? {}) as Prices }
 }
 
 export function toEnrol(id: string, d: DocumentData): EnrolRequest {

@@ -45,6 +45,14 @@
   --color-yellow: #ffd43d;       /* ending soon / offline */
   --color-yellow-ink: #3b3519;   /* secondary text on yellow */
 
+  /* Busiest-hours heatmap: one hue (the design's green), light → dark */
+  --color-heat-0: #f3f5f4;
+  --color-heat-1: #ddf6e6;
+  --color-heat-2: #a9e9c1;
+  --color-heat-3: #5fd690;
+  --color-heat-4: #1db85a;
+  --color-heat-5: #0e7a3a;
+
   --color-red: #ff5d4f;          /* locked out / denied */
   --color-red-dot: #e5372a;      /* denied dot */
   --color-red-soft: #ffe1dc;     /* locked-out avatar */

@@ -29,7 +29,7 @@ service cloud.firestore {
     function auditPath(id) { return /databases/$(database)/documents/audit/$(id); }
     function withAudit() {
       return request.resource.data.lastAuditId is string
-        && (resource == null || request.resource.data.lastAuditId != resource.data.lastAuditId)
+        && (resource == null || request.resource.data.lastAuditId != resource.data.get('lastAuditId', null))
         && existsAfter(auditPath(request.resource.data.lastAuditId))
         && getAfter(auditPath(request.resource.data.lastAuditId)).data.actor.uid == request.auth.uid;
     }
@@ -63,10 +63,19 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Price list per branch, in cents
+    function validPrice(v) { return v == null || (v is int && v >= 0 && v <= 10000000); }
+    function validPrices(p) {
+      return p is map && p.keys().hasOnly(['day', 'm1', 'm3', 'm6', 'm12'])
+        && validPrice(p.get('day', null)) && validPrice(p.get('m1', null)) && validPrice(p.get('m3', null))
+        && validPrice(p.get('m6', null)) && validPrice(p.get('m12', null));
+    }
+
     match /branches/{branchId} {
       allow read: if active();
       allow create, update: if isManager()
-        && request.resource.data.keys().hasOnly(['name', 'createdAt', 'lastAuditId'])
+        && request.resource.data.keys().hasOnly(['name', 'createdAt', 'lastAuditId', 'prices'])
+        && (!('prices' in request.resource.data) || validPrices(request.resource.data.prices))
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
         && withAudit();
@@ -91,7 +100,9 @@ service cloud.firestore {
         && p.qty is int && p.qty >= 1
         && p.start is string && p.end is string && p.start <= p.end
         && p.loggedBy.uid == request.auth.uid
-        && (!('method' in p) || p.method in ['cash', 'card', 'eft', 'debit_order']);
+        && (!('method' in p) || p.method in ['cash', 'card', 'eft', 'debit_order'])
+        // rand amount in cents (older and imported payments have none)
+        && (!('amountCents' in p) || (p.amountCents is int && p.amountCents >= 0 && p.amountCents <= 10000000));
     }
 
     // Front desk may only add one payment at the end of the list; earlier ones stay exactly as they were.

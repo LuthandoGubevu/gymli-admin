@@ -36,6 +36,10 @@ import {
 import { evaluateAccess, deniedText, periodEnd } from '../src/lib/access'
 import { addDays, addMonthsClamped, dateAtGym, todayAtGym, type LocalDate } from '../src/lib/dates'
 import { MEMBERS, SCANS, sampleSaId } from './sampleData'
+import { priceFor } from '../src/lib/accounts'
+
+/** Sample amounts (cents) for the demo payments */
+const DEMO_PRICES = { day: 8000, m1: 45000, m3: 125000, m6: 240000, m12: 450000 }
 
 const emulator = process.env.GYMLI_EMULATOR === '1'
 const config = {
@@ -109,7 +113,7 @@ async function main() {
     const ref = doc(collection(mgr.db, 'branches'))
     await runTransaction(mgr.db, async (tx) => {
       const auditId = audit(mgr.db, tx, me, 'branch.create', 'branch', ref.id, 'Added branch Body Tone Sandton')
-      tx.set(ref, { name: 'Body Tone Sandton', createdAt: serverTimestamp(), lastAuditId: auditId })
+      tx.set(ref, { name: 'Body Tone Sandton', prices: DEMO_PRICES, createdAt: serverTimestamp(), lastAuditId: auditId })
     })
     branchId = ref.id
   }
@@ -186,6 +190,7 @@ async function main() {
             loggedBy: { uid: me.uid, name: me.name },
             loggedAt: at(start, p.time),
             method: (['card', 'cash', 'eft', 'debit_order'] as const)[(spec.number + i) % 4],
+            amountCents: priceFor(DEMO_PRICES, p.kind, p.qty) ?? 45000,
           }
         })
         await runTransaction(mgr.db, async (tx) => {

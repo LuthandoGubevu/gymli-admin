@@ -32,6 +32,8 @@ import {
 import { periodEnd, type PeriodKind } from '../src/lib/access'
 import { addDays, addMonthsClamped, dateAtGym, todayAtGym, type LocalDate } from '../src/lib/dates'
 import { MEMBERS, SCANS, sampleSaId } from './sampleData'
+import { priceFor } from '../src/lib/accounts'
+import type { Prices } from '../src/lib/types'
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'demo-gymli'
 const PASSWORD = 'gymli-demo-2026'
@@ -45,6 +47,12 @@ connectFirestoreEmulator(db, '127.0.0.1', 8080)
 
 const SANDTON = 'sandton'
 const SOWETO = 'soweto'
+
+/** Sample price lists (cents) */
+const PRICES: Record<string, Prices> = {
+  [SANDTON]: { day: 8000, m1: 45000, m3: 125000, m6: 240000, m12: 450000 },
+  [SOWETO]: { day: 6000, m1: 35000, m3: 99000, m6: 190000, m12: 360000 },
+}
 
 /** Soweto members: first, last, cellphone, months paid, end of payment (days from today). */
 const SOWETO_MEMBERS: [string, string, string, number, number][] = [
@@ -114,7 +122,7 @@ async function main() {
   for (const [id, name] of [[SANDTON, 'Body Tone Sandton'], [SOWETO, 'Body Tone Soweto']]) {
     await runTransaction(db, async (tx) => {
       const auditId = audit(tx, grace, 'branch.create', id, `Added branch ${name}`)
-      tx.set(doc(db, 'branches', id), { name, createdAt: serverTimestamp(), lastAuditId: auditId })
+      tx.set(doc(db, 'branches', id), { name, prices: PRICES[id], createdAt: serverTimestamp(), lastAuditId: auditId })
     })
   }
   for (const [email, name, role, branchId] of others) {
@@ -180,6 +188,7 @@ async function main() {
         loggedBy: { uid: staffFor[p.by].uid, name: staffFor[p.by].name },
         loggedAt: at(start, p.time),
         method: (['card', 'cash', 'eft', 'debit_order'] as const)[(spec.number + periods.length) % 4],
+        amountCents: priceFor(PRICES[SANDTON], p.kind, p.qty) ?? 45000,
       }
       periods.push(period)
       await runTransaction(db, async (tx) => {
@@ -257,7 +266,7 @@ async function main() {
     })
     const end = d(endOffset)
     const start = addMonthsClamped(addDays(end, 1), -months)
-    const period = { id: crypto.randomUUID(), kind: 'months', qty: months, start, end: periodEnd('months', months, start), loggedBy: { uid: who.lindiwe.uid, name: who.lindiwe.name }, loggedAt: at(start, '07:00'), method: 'card' }
+    const period = { id: crypto.randomUUID(), kind: 'months', qty: months, start, end: periodEnd('months', months, start), loggedBy: { uid: who.lindiwe.uid, name: who.lindiwe.name }, loggedAt: at(start, '07:00'), method: 'card', amountCents: priceFor(PRICES[SOWETO], 'months', months) }
     await runTransaction(db, async (tx) => {
       const auditId = audit(tx, who.lindiwe, 'payment.create', memberRef.id, `Logged ${months} months`)
       tx.update(memberRef, { periods: [period], updatedAt: serverTimestamp(), lastAuditId: auditId })

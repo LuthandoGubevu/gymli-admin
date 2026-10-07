@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { pickBranch } from '../../src/lib/branch'
 
 const branches = [
-  { id: 'b1', name: 'Sandton' },
-  { id: 'b2', name: 'Soweto' },
+  { id: 'b1', name: 'Sandton', prices: {} },
+  { id: 'b2', name: 'Soweto', prices: {} },
 ]
 
 describe('pickBranch', () => {

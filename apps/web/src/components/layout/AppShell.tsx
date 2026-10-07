@@ -1,4 +1,4 @@
-import { Building2, Check, ChevronDown, House, LogOut, Plus, ScrollText, Search, Settings, Users, type LucideIcon } from 'lucide-react'
+import { Building2, Check, ChevronDown, House, LogOut, Plus, ScrollText, Search, Settings, Users, Wallet, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { logOut, useGym, useNow, useStaff } from '../../data/store'
@@ -18,6 +18,12 @@ const NAV: NavItem[] = [
   { to: '/door-log', label: 'Door log', icon: ScrollText },
 ]
 
+/** Managers also get Accounts (money, reports, exports). */
+function useNav(): NavItem[] {
+  const staff = useStaff()
+  return staff.role === 'manager' ? [...NAV, { to: '/accounts', label: 'Accounts', icon: Wallet }] : NAV
+}
+
 export function Logo({ size = 34 }: { size?: 34 | 44 }) {
   return (
     <span className={cx('font-extrabold leading-none tracking-tightest', size === 34 ? 'text-34 stretch-68' : 'text-44 stretch-66')}>
@@ -29,6 +35,7 @@ export function Logo({ size = 34 }: { size?: 34 | 44 }) {
 /** Design: GymRail — dark vertical rail on the left (desktop). */
 function Rail() {
   const staff = useStaff()
+  const nav = useNav()
   const railItem = (active: boolean) =>
     cx('flex size-48 items-center justify-center rounded-full transition-colors', active ? 'bg-white text-ink' : 'text-faint hover:text-white')
   return (
@@ -37,7 +44,7 @@ function Rail() {
         G
       </Link>
       <div className="my-6 h-1 w-24 bg-rail-line" />
-      {NAV.map((n) => (
+      {nav.map((n) => (
         <NavLink key={n.to} to={n.to} end={n.end} title={n.label} aria-label={n.label} className={({ isActive }) => railItem(isActive)}>
           <n.icon size={20} strokeWidth={2} />
         </NavLink>
@@ -170,9 +177,14 @@ function UserMenu() {
         <div className="absolute top-52 right-0 z-40 w-220 rounded-tile bg-white p-8 shadow-modal">
           <div className="px-12 py-8 text-13 text-muted">{staff.email}</div>
           {staff.role === 'manager' && (
-            <Link to="/settings" onClick={() => setOpen(false)} className="flex h-44 items-center gap-10 rounded-row px-12 text-14 font-semibold hover:bg-field">
-              <Settings size={16} /> Settings
-            </Link>
+            <>
+              <Link to="/accounts" onClick={() => setOpen(false)} className="flex h-44 items-center gap-10 rounded-row px-12 text-14 font-semibold hover:bg-field">
+                <Wallet size={16} /> Accounts
+              </Link>
+              <Link to="/settings" onClick={() => setOpen(false)} className="flex h-44 items-center gap-10 rounded-row px-12 text-14 font-semibold hover:bg-field">
+                <Settings size={16} /> Settings
+              </Link>
+            </>
           )}
           <button type="button" onClick={() => logOut()} className="flex h-44 w-full items-center gap-10 rounded-row px-12 text-14 font-semibold hover:bg-field">
             <LogOut size={16} /> Sign out
@@ -186,13 +198,14 @@ function UserMenu() {
 /** Design: GymTopNav */
 function TopNav() {
   const navigate = useNavigate()
+  const nav = useNav()
   return (
     <div className="flex h-56 items-center gap-16 max-md:h-44 max-md:gap-8">
       <Link to="/" aria-label="Gymli home">
         <Logo />
       </Link>
       <nav aria-label="Sections" className="ml-16 flex gap-4 rounded-full border border-glass-edge bg-glass p-5 backdrop-blur-nav max-lg:hidden">
-        {NAV.map((n) => (
+        {nav.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
