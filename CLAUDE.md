@@ -33,6 +33,10 @@ Read this file before you change anything. If a request conflicts with it, ask f
 - Font: Archivo (Google Fonts, variable width). Headings use the condensed width
   (font-stretch ~66–68%) and heavy weight, as in the design.
 - Light mode only for now.
+- **Brand:** the app is called **Body Tone Gym** (subtitle "Management System"). Brand red `--color-brand`
+  (#fb2f30, from their logo) and black are for brand marks only: wordmark, rail badge, sign-in logo, the
+  phone + button. Status colours keep their meaning (green paid / let in, red locked out / denied, yellow
+  ending). "Gymli" stays the internal code name.
 - Visual check: Playwright screenshots of every built screen at **1440px and 390px**,
   compared side by side with the matching section of the design file. Fix differences before
   moving on. Record every deliberate deviation, and the reason, in `docs/design-deviations.md`.

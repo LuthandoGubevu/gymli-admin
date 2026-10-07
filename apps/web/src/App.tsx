@@ -28,7 +28,7 @@ function Gate() {
   if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center bg-app">
-        <Spinner label="Starting Gymli" />
+        <Spinner label="Starting Body Tone Gym" />
       </div>
     )
   if (!user || !staff) return <LoginPage noAccess={!!user && noAccess} />

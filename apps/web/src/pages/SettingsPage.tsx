@@ -263,7 +263,7 @@ function DevicesCard() {
       </div>
       {logins.length === 0 ? (
         <EmptyState icon={MonitorSmartphone} title="No check-in PC yet">
-          Add a check-in login for this branch, then enter it in Gymli Check-in on the reception PC.
+          Add a check-in login for this branch, then enter it in the check-in program on the reception PC.
         </EmptyState>
       ) : (
         logins.map((s) => {
@@ -370,7 +370,7 @@ function NewLoginModal({ role, onClose }: { role: Role | null; onClose: () => vo
     <Modal open={!!role} onClose={onClose} locked={busy} width="md" eyebrow={isDevice ? 'Reception PC' : 'New login'} title={isDevice ? 'Check-in login' : 'Add staff'}>
       {created ? (
         <div className="flex flex-col gap-16">
-          <div className="text-16 text-ink-2">Enter these in Gymli Check-in on the reception PC. The password is shown only once.</div>
+          <div className="text-16 text-ink-2">Enter these in the check-in program on the reception PC. The password is shown only once.</div>
           <div className="rounded-tile bg-field p-20 text-16 tabular">
             <div className="text-13 text-muted">Email</div>
             <div className="font-semibold select-all">{created.email}</div>

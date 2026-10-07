@@ -13,6 +13,8 @@
   <SolidColorBrush x:Key="White" Color="#FFFFFF" />
   <SolidColorBrush x:Key="Green" Color="#2FD16E" />
   <SolidColorBrush x:Key="GreenMark" Color="#1DB85A" />
+  <!-- Body Tone Gym brand red (same as the web brand token) -->
+  <SolidColorBrush x:Key="Brand" Color="#FB2F30" />
   <SolidColorBrush x:Key="Yellow" Color="#FFD43D" />
   <SolidColorBrush x:Key="Red" Color="#FF5D4F" />
   <SolidColorBrush x:Key="Chip" Color="#EEF1EF" />

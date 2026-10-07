@@ -1,7 +1,6 @@
 import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth'
 import { KeyRound, LogIn, Mail } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { Logo } from '../components/layout/AppShell'
 import { Button, ErrorNote, TextField } from '../components/ui'
 import { authMessage } from '../data/actions'
 import { logOut } from '../data/store'
@@ -42,9 +41,9 @@ export function LoginPage({ noAccess }: { noAccess?: boolean }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-app p-24 max-md:bg-app-mobile max-md:p-16">
       <div className="flex w-full max-w-480 flex-col gap-24 rounded-frame bg-white p-36 shadow-modal max-md:p-24">
-        <div className="flex items-center justify-between">
-          <Logo size={44} />
-          <span className="flex size-48 items-center justify-center rounded-full bg-green text-26 font-extrabold text-ink stretch-68">G</span>
+        <div className="-mx-36 -mt-36 overflow-hidden rounded-t-frame bg-brand-ink max-md:-mx-24 max-md:-mt-24">
+          <img src="/brand/body-tone-gym.jpg" alt="Body Tone Gym, est. 2024" className="block w-full" />
+          <div className="pb-16 text-center text-13 font-semibold tracking-caps text-white uppercase">Management System</div>
         </div>
         {noAccess ? (
           <>

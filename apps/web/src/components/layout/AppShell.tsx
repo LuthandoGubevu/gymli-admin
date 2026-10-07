@@ -24,10 +24,14 @@ function useNav(): NavItem[] {
   return staff.role === 'manager' ? [...NAV, { to: '/accounts', label: 'Accounts', icon: Wallet }] : NAV
 }
 
+/** Body Tone Gym wordmark with the "Management System" subtitle. */
 export function Logo({ size = 34 }: { size?: 34 | 44 }) {
   return (
-    <span className={cx('font-extrabold leading-none tracking-tightest', size === 34 ? 'text-34 stretch-68' : 'text-44 stretch-66')}>
-      gymli<span className="text-green-mark">.</span>
+    <span className="flex flex-col leading-none">
+      <span className={cx('font-extrabold whitespace-nowrap tracking-tight uppercase', size === 34 ? 'text-24 stretch-66 max-md:text-18' : 'text-34 stretch-66')}>
+        Body Tone <span className="text-brand">Gym</span>
+      </span>
+      <span className={cx('mt-4 font-semibold whitespace-nowrap text-muted uppercase', size === 34 ? 'text-11 tracking-caps max-md:hidden' : 'text-13 tracking-caps')}>Management System</span>
     </span>
   )
 }
@@ -40,8 +44,8 @@ function Rail() {
     cx('flex size-48 items-center justify-center rounded-full transition-colors', active ? 'bg-white text-ink' : 'text-faint hover:text-white')
   return (
     <nav aria-label="Main" className="fixed top-28 left-24 z-30 flex w-76 flex-col items-center gap-10 rounded-rail bg-rail p-14 shadow-rail max-md:hidden">
-      <Link to="/" aria-label="Gymli home" className="flex size-48 items-center justify-center rounded-full bg-green text-26 font-extrabold tracking-tighter text-ink stretch-68">
-        G
+      <Link to="/" aria-label="Body Tone Gym home" className="flex size-48 items-center justify-center rounded-full bg-brand text-20 font-extrabold tracking-tight text-white stretch-68">
+        BT
       </Link>
       <div className="my-6 h-1 w-24 bg-rail-line" />
       {nav.map((n) => (
@@ -91,6 +95,9 @@ export function TurnstileChip({ compact }: { compact?: boolean }) {
   )
 }
 
+/** "Body Tone Soweto" → "Soweto" (the brand is already in the header on phones). */
+const shortBranchName = (name: string) => name.replace(/^body tone( gym)?\s+/i, '') || name
+
 /** Which branch the screens show. Managers switch; front desk sees their own branch only. */
 export function BranchSwitcher() {
   const staff = useStaff()
@@ -106,19 +113,21 @@ export function BranchSwitcher() {
     return () => document.removeEventListener('mousedown', close)
   }, [open])
   if (!branch) return null
-  const chip = 'flex h-44 max-w-220 items-center gap-8 rounded-full border border-glass-edge bg-glass px-16 text-13 font-semibold text-ink'
+  const chip = 'flex h-44 max-w-220 items-center gap-8 rounded-full border border-glass-edge bg-glass px-16 text-13 font-semibold text-ink max-md:max-w-110 max-md:gap-6 max-md:px-12'
   if (staff.role !== 'manager' || branches.data.length < 2)
     return (
       <div className={chip} title="Branch">
-        <Building2 size={16} className="shrink-0" />
-        <span className="truncate">{branch.name}</span>
+        <Building2 size={16} className="shrink-0 max-md:hidden" />
+        <span className="truncate max-md:hidden">{branch.name}</span>
+        <span className="truncate md:hidden">{shortBranchName(branch.name)}</span>
       </div>
     )
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Branch: ${branch.name}`} className={cx(chip, 'hover:bg-white')}>
-        <Building2 size={16} className="shrink-0" />
-        <span className="truncate">{branch.name}</span>
+        <Building2 size={16} className="shrink-0 max-md:hidden" />
+        <span className="truncate max-md:hidden">{branch.name}</span>
+        <span className="truncate md:hidden">{shortBranchName(branch.name)}</span>
         <ChevronDown size={16} className="shrink-0 text-muted" />
       </button>
       {open && (
@@ -201,7 +210,7 @@ function TopNav() {
   const nav = useNav()
   return (
     <div className="flex h-56 items-center gap-16 max-md:h-44 max-md:gap-8">
-      <Link to="/" aria-label="Gymli home">
+      <Link to="/" aria-label="Body Tone Gym home">
         <Logo />
       </Link>
       <nav aria-label="Sections" className="ml-16 flex gap-4 rounded-full border border-glass-edge bg-glass p-5 backdrop-blur-nav max-lg:hidden">
@@ -246,7 +255,7 @@ function MobileDock() {
           <n.icon size={20} />
         </NavLink>
       ))}
-      <Link to="/members/new" aria-label="Add member" className="flex size-52 items-center justify-center rounded-full bg-green text-ink">
+      <Link to="/members/new" aria-label="Add member" className="flex size-52 items-center justify-center rounded-full bg-brand text-white">
         <Plus size={20} />
       </Link>
     </nav>

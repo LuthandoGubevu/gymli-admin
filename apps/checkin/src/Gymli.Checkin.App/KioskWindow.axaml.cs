@@ -52,7 +52,7 @@ public partial class KioskWindow : Window
         {
             // Background: members only scan their finger. The window stays minimised on the
             // reception PC; staff can open it from the taskbar to see its status.
-            Title = $"Gymli Check-in · {host.Settings.DeviceName}";
+            Title = $"Body Tone Gym · Check-in · {host.Settings.DeviceName}";
             WindowState = WindowState.Minimized;
             // The X button minimises, so the turnstile keeps working. Ctrl+Shift+Q quits.
             Closing += (_, e) =>
@@ -118,7 +118,7 @@ public partial class KioskWindow : Window
         BgResult.Background = Brush(view == KioskView.Denied ? "Red" : "Green");
         ClockBlock.IsVisible = !result;
         Place.Foreground = Brush(result ? "Ink" : "Muted");
-        LogoDot.Foreground = Brush(result ? "Ink" : "GreenMark");
+        LogoDot.Foreground = Brush(result ? "Ink" : "Brand");
         Place.FontFamily = (FontFamily)Application.Current!.FindResource(result ? "FontSemibold" : "FontText")!;
 
         // Arm state at the bottom

@@ -38,7 +38,7 @@ function download(blob: Blob, name: string) {
 export async function exportExcel<T>(spec: ExportSpec<T>): Promise<void> {
   const { Workbook } = await import('exceljs')
   const wb = new Workbook()
-  wb.creator = 'Gymli'
+  wb.creator = 'Body Tone Gym'
   const ws = wb.addWorksheet(spec.title.slice(0, 31))
   ws.addRow([spec.title]).font = { bold: true, size: 14 }
   ws.addRow([spec.subtitle])
@@ -88,7 +88,7 @@ export async function exportPdf<T>(spec: ExportSpec<T>): Promise<void> {
     didDrawPage: () => {
       doc.setFontSize(8)
       doc.setTextColor(92, 101, 96)
-      doc.text(`Gymli · ${spec.title} · page ${doc.getNumberOfPages()}`, 14, doc.internal.pageSize.getHeight() - 8)
+      doc.text(`Body Tone Gym · ${spec.title} · page ${doc.getNumberOfPages()}`, 14, doc.internal.pageSize.getHeight() - 8)
     },
   })
   download(doc.output('blob'), `${spec.file}.pdf`)

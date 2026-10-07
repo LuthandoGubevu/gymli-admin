@@ -53,7 +53,7 @@ function FirstBranch({ onBusy }: { onBusy: (busy: boolean) => void }) {
     <>
       <PageHeader eyebrow="Set up" title="Name your first branch" />
       <Card className="flex max-w-560 flex-col gap-16 p-28 max-md:p-18">
-        <div className="text-16 text-ink-2">Members, front desk and check-in PCs belong to a branch. Everything already in Gymli goes into this one. You can add more branches in Settings.</div>
+        <div className="text-16 text-ink-2">Members, front desk and check-in PCs belong to a branch. Everything already in the system goes into this one. You can add more branches in Settings.</div>
         <TextField label="Branch name" value={name} onChange={(e) => setName(e.target.value)} placeholder="For example Body Tone Sandton" />
         {error && <ErrorNote>{error}</ErrorNote>}
         <div>

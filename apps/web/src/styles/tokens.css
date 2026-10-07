@@ -45,6 +45,11 @@
   --color-yellow: #ffd43d;       /* ending soon / offline */
   --color-yellow-ink: #3b3519;   /* secondary text on yellow */
 
+  /* Body Tone Gym brand (from their logo). Brand marks only — status colours keep their meaning. */
+  --color-brand: #fb2f30;
+  --color-brand-deep: #d61f22;
+  --color-brand-ink: #000000;
+
   /* Busiest-hours heatmap: one hue (the design's green), light → dark */
   --color-heat-0: #f3f5f4;
   --color-heat-1: #ddf6e6;
