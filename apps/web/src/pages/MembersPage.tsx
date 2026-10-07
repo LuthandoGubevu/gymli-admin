@@ -137,7 +137,7 @@ export function MembersPage() {
           <div>Status</div>
           <div>Paid until</div>
           <div className="max-xl:hidden">Last payment</div>
-          <div>Fingerprint</div>
+          <div className="max-lg:hidden">Fingerprint</div>
           <div className="max-xl:hidden" />
         </div>
 
@@ -223,7 +223,7 @@ function MemberRow({ view, onOpen, onPay, onEnrol, onEdit }: { view: MemberView;
         <div className="mt-1 text-12 text-muted">{until.sub}</div>
       </div>
       <div className="text-14 text-ink-2 max-xl:hidden">{lastPaymentText(lastPayment)}</div>
-      <div className="max-md:hidden">
+      <div className="max-lg:hidden">
         {member.fingerprint ? (
           <div className="flex items-center gap-8 text-14 font-medium">
             <span className="flex size-26 items-center justify-center rounded-full bg-green-soft text-green-deep">

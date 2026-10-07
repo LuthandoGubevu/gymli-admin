@@ -74,13 +74,13 @@ export function TurnstileChip({ compact }: { compact?: boolean }) {
   const online = isDeviceOnline(device, now)
   const label = devices.loading ? 'Checking turnstile' : !device ? 'No turnstile yet' : online ? 'Turnstile online' : 'Turnstile offline'
   const className = cx(
-    'flex h-44 items-center gap-8 rounded-full border border-glass-edge bg-glass text-13 font-medium text-ink-2',
-    compact ? 'px-14' : 'px-16',
+    'flex h-44 shrink-0 items-center gap-8 rounded-full border border-glass-edge bg-glass text-13 font-medium whitespace-nowrap text-ink-2',
+    compact ? 'px-14 max-2xl:w-44 max-2xl:justify-center max-2xl:px-0' : 'px-16',
   )
   const content = (
     <>
       <span className={cx('size-8 rounded-full', online ? 'bg-green-mark' : devices.loading ? 'bg-dot' : 'bg-red')} />
-      <span className={cx(compact && 'max-md:sr-only')}>{label}</span>
+      <span className={cx(compact && 'max-2xl:sr-only')}>{label}</span>
     </>
   )
   // Managers can open the turnstile details in Settings
@@ -113,21 +113,21 @@ export function BranchSwitcher() {
     return () => document.removeEventListener('mousedown', close)
   }, [open])
   if (!branch) return null
-  const chip = 'flex h-44 max-w-220 items-center gap-8 rounded-full border border-glass-edge bg-glass px-16 text-13 font-semibold text-ink max-md:max-w-110 max-md:gap-6 max-md:px-12'
+  const chip = 'flex h-44 max-w-220 items-center gap-8 rounded-full border border-glass-edge bg-glass px-16 text-13 font-semibold whitespace-nowrap text-ink shrink-0 max-2xl:max-w-180 max-md:max-w-110 max-md:gap-6 max-md:px-12'
   if (staff.role !== 'manager' || branches.data.length < 2)
     return (
       <div className={chip} title="Branch">
         <Building2 size={16} className="shrink-0 max-md:hidden" />
-        <span className="truncate max-md:hidden">{branch.name}</span>
-        <span className="truncate md:hidden">{shortBranchName(branch.name)}</span>
+        <span className="truncate max-2xl:hidden">{branch.name}</span>
+        <span className="truncate 2xl:hidden">{shortBranchName(branch.name)}</span>
       </div>
     )
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Branch: ${branch.name}`} className={cx(chip, 'hover:bg-white')}>
         <Building2 size={16} className="shrink-0 max-md:hidden" />
-        <span className="truncate max-md:hidden">{branch.name}</span>
-        <span className="truncate md:hidden">{shortBranchName(branch.name)}</span>
+        <span className="truncate max-2xl:hidden">{branch.name}</span>
+        <span className="truncate 2xl:hidden">{shortBranchName(branch.name)}</span>
         <ChevronDown size={16} className="shrink-0 text-muted" />
       </button>
       {open && (
@@ -174,17 +174,23 @@ function UserMenu() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex h-44 items-center gap-10 rounded-full bg-white pr-16 pl-5 shadow-user max-md:pr-5"
+        aria-label={`${staff.name}, ${ROLE_LABEL[staff.role]}`}
+        className="flex h-44 shrink-0 items-center gap-10 rounded-full bg-white pr-16 pl-5 whitespace-nowrap shadow-user max-2xl:gap-6 max-2xl:pr-10 max-md:pr-5"
       >
         <span className="flex size-34 items-center justify-center rounded-full bg-ink text-14 font-bold text-white">{staff.name.slice(0, 1).toUpperCase()}</span>
-        <span className="text-14 font-semibold max-md:hidden">
+        <span className="text-14 font-semibold max-2xl:hidden">
           {staff.name.split(' ')[0]} <span className="font-normal text-muted">· {ROLE_LABEL[staff.role]}</span>
         </span>
         <ChevronDown size={16} className="text-muted max-md:hidden" />
       </button>
       {open && (
-        <div className="absolute top-52 right-0 z-40 w-220 rounded-tile bg-white p-8 shadow-modal">
-          <div className="px-12 py-8 text-13 text-muted">{staff.email}</div>
+        <div className="absolute top-52 right-0 z-40 w-260 rounded-tile bg-white p-8 shadow-modal">
+          <div className="px-12 pt-8 pb-10">
+            <div className="truncate text-15 font-semibold">{staff.name}</div>
+            <div className="truncate text-13 text-muted">
+              {ROLE_LABEL[staff.role]} · {staff.email}
+            </div>
+          </div>
           {staff.role === 'manager' && (
             <>
               <Link to="/accounts" onClick={() => setOpen(false)} className="flex h-44 items-center gap-10 rounded-row px-12 text-14 font-semibold hover:bg-field">
@@ -209,18 +215,18 @@ function TopNav() {
   const navigate = useNavigate()
   const nav = useNav()
   return (
-    <div className="flex h-56 items-center gap-16 max-md:h-44 max-md:gap-8">
-      <Link to="/" aria-label="Body Tone Gym home">
+    <div data-testid="topbar" className="flex h-56 items-center gap-16 max-2xl:gap-10 max-md:h-44 max-md:gap-8">
+      <Link to="/" aria-label="Body Tone Gym home" className="shrink-0">
         <Logo />
       </Link>
-      <nav aria-label="Sections" className="ml-16 flex gap-4 rounded-full border border-glass-edge bg-glass p-5 backdrop-blur-nav max-lg:hidden">
+      <nav aria-label="Sections" className="ml-16 flex shrink-0 gap-4 rounded-full max-2xl:ml-4 border border-glass-edge bg-glass p-5 backdrop-blur-nav max-lg:hidden">
         {nav.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
             end={n.end}
             className={({ isActive }) =>
-              cx('rounded-full px-22 py-11 text-14', isActive ? 'bg-ink font-semibold text-white' : 'font-medium text-ink-2 hover:bg-white')
+              cx('rounded-full px-22 py-11 text-14 whitespace-nowrap max-2xl:px-18', isActive ? 'bg-ink font-semibold text-white' : 'font-medium text-ink-2 hover:bg-white')
             }
           >
             {n.label}

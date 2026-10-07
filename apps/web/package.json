@@ -18,6 +18,7 @@
     "demo": "tsx scripts/demo.ts",
     "e2e": "playwright test",
     "visual": "tsx tests/visual/compare.ts",
+    "visual:responsive": "tsx tests/visual/responsive.ts",
     "deploy": "npm run build && firebase deploy --only hosting,firestore"
   },
   "dependencies": {

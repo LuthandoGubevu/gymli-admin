@@ -181,6 +181,8 @@
   --breakpoint-md: 768px;
   --breakpoint-lg: 1100px;
   --breakpoint-xl: 1360px;
+  /* header shows every label in full from here */
+  --breakpoint-2xl: 1520px;
 }
 
 /* ---------- Font widths (Archivo variable width axis) ---------- */
@@ -247,6 +249,7 @@
 @utility grid-members {
   grid-template-columns: minmax(0, 2.1fr) 190px 170px minmax(0, 1.5fr) 170px 196px;
   @media (width < 1360px) { grid-template-columns: minmax(0, 2fr) 150px 130px 150px; }
+  @media (width < 1100px) { grid-template-columns: minmax(0, 1fr) 140px 130px; }
 }
 /* Paid periods rows (design 03) */
 @utility grid-periods {
