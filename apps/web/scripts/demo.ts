@@ -15,67 +15,18 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
-import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, type Auth } from 'firebase/auth'
-import {
-  collection,
-  connectFirestoreEmulator,
-  doc,
-  getDoc,
-  getDocs,
-  getFirestore,
-  limit,
-  query,
-  runTransaction,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  where,
-  type Firestore,
-} from 'firebase/firestore'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
+import { collection, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore'
 import { evaluateAccess, deniedText, periodEnd } from '../src/lib/access'
 import { addDays, addMonthsClamped, dateAtGym, todayAtGym, type LocalDate } from '../src/lib/dates'
 import { MEMBERS, SCANS, sampleSaId } from './sampleData'
 import { priceFor } from '../src/lib/accounts'
+import { audit, config, connect, databaseId, DEMO_PRICES, type Who } from './demoShared'
 
-/** Sample amounts (cents) for the demo payments */
-const DEMO_PRICES = { day: 8000, m1: 45000, m3: 125000, m6: 240000, m12: 450000 }
-
-const emulator = process.env.GYMLI_EMULATOR === '1'
-const config = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyA_7OZFBLLvcm61zSsJt-cBF74Oqe_Gf1E',
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN ?? 'fundanii-ai.firebaseapp.com',
-  projectId: emulator ? 'demo-gymli' : (process.env.VITE_FIREBASE_PROJECT_ID ?? 'fundanii-ai'),
-  appId: process.env.VITE_FIREBASE_APP_ID ?? '1:613367943903:web:3e8b371d28e464a034cf6a',
-}
-const databaseId = emulator ? '(default)' : (process.env.VITE_FIREBASE_DATABASE_ID ?? 'gymli-admin')
 const DEVICE_FILE = new URL('./.demo-device.json', import.meta.url)
 const TODAY: LocalDate = todayAtGym()
 const d = (offset: number) => addDays(TODAY, offset)
 const at = (date: LocalDate, hhmm: string) => Date.parse(`${date}T${hhmm}:00+02:00`)
-
-interface Who {
-  uid: string
-  name: string
-  role: 'manager' | 'device'
-}
-
-function connect(name: string): { app: FirebaseApp; auth: Auth; db: Firestore } {
-  const app = initializeApp(config, name)
-  const auth = getAuth(app)
-  const db = getFirestore(app, databaseId)
-  if (emulator) {
-    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
-    connectFirestoreEmulator(db, '127.0.0.1', 8080)
-  }
-  return { app, auth, db }
-}
-
-function audit(db: Firestore, tx: { set: (ref: ReturnType<typeof doc>, data: object) => unknown }, who: Who, action: string, entity: string, entityId: string, summary: string) {
-  const ref = doc(collection(db, 'audit'))
-  tx.set(ref, { at: serverTimestamp(), actor: { uid: who.uid, name: who.name, role: who.role }, action, entity, entityId, summary, before: null, after: null })
-  return ref.id
-}
 
 /** Start and end of a sample period, worked out from its end offset. */
 function datesOf(p: (typeof MEMBERS)[number]['periods'][number]) {

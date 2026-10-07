@@ -16,3 +16,4 @@ obj/
 .vs/
 apps/checkin/dist/
 apps/web/scripts/.demo-device.json
+apps/web/scripts/.demo-busy.json

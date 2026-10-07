@@ -16,6 +16,7 @@
     "seed": "tsx scripts/seed.ts",
     "bootstrap": "tsx scripts/bootstrap.ts",
     "demo": "tsx scripts/demo.ts",
+    "demo:busy": "tsx scripts/demo-busy.ts",
     "e2e": "playwright test",
     "visual": "tsx tests/visual/compare.ts",
     "visual:responsive": "tsx tests/visual/responsive.ts",

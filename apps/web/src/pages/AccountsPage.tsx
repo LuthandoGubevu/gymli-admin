@@ -2,7 +2,7 @@ import { collection, getDocs, limit, onSnapshot, orderBy, query, where } from 'f
 import { ArrowDown, ArrowUp, CalendarDays, FileSpreadsheet, FileText, Phone, Search, Wallet } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Card, CardTitle, cx, EmptyState, ErrorNote, PageHeader, SkeletonRows } from '../components/ui'
+import { Button, Card, CardTitle, cx, EmptyState, ErrorNote, PageHeader, SkeletonRows } from '../components/ui'
 import { useToast } from '../components/ui/Toast'
 import { toDoorLog, toMember } from '../data/convert'
 import { useGym, useStaff, useToday } from '../data/store'
@@ -213,6 +213,28 @@ function ExportButtons({ onExcel, onPdf, disabled }: { onExcel: () => void; onPd
   )
 }
 
+/** Long lists show 50 rows at a time; exports always include every row. */
+const PAGE = 50
+function useShowMore<T>(rows: readonly T[]) {
+  const [count, setCount] = useState(PAGE)
+  useEffect(() => setCount(PAGE), [rows])
+  return { visible: rows.slice(0, count), footer: <ShowMore shown={Math.min(count, rows.length)} total={rows.length} onMore={() => setCount((n) => n + PAGE * 4)} /> }
+}
+
+function ShowMore({ shown, total, onMore }: { shown: number; total: number; onMore: () => void }) {
+  if (shown >= total) return null
+  return (
+    <div className="flex items-center justify-between gap-12 border-t border-line-6 pt-16">
+      <div className="text-14 text-muted">
+        Showing {shown} of {total}
+      </div>
+      <Button variant="outline" size="sm" onClick={onMore}>
+        {total - shown > PAGE * 4 ? `Show ${PAGE * 4} more` : `Show all ${total}`}
+      </Button>
+    </div>
+  )
+}
+
 function ReportHead({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="mb-14 flex flex-wrap items-center gap-14">
@@ -273,6 +295,7 @@ function PaymentsTable(props: {
     rows: shown,
     totals: columns.map((c, i) => (i === 0 ? `Total · ${shown.length} payments` : c.header === 'Amount' ? shown.reduce((s, r) => s + (r.amountCents ?? 0), 0) : undefined)),
   }
+  const page = useShowMore(shown)
   const sortBtn = (key: SortKey, label: string, right?: boolean) => (
     <button type="button" onClick={() => setSort((s) => ({ key, desc: s.key === key ? !s.desc : key !== 'member' }))} className={cx('inline-flex items-center gap-4 hover:text-ink', right && 'ml-auto')}>
       {label}
@@ -308,7 +331,7 @@ function PaymentsTable(props: {
               </tr>
             </thead>
             <tbody>
-              {shown.map((r) => (
+              {page.visible.map((r) => (
                 <tr key={r.id} className="hover:bg-white">
                   <td className={td}>
                     {formatDayMonth(r.date)} <span className="text-muted">{r.time}</span>
@@ -343,6 +366,7 @@ function PaymentsTable(props: {
           </table>
         </div>
       )}
+      {page.footer}
     </Card>
   )
 }
@@ -359,6 +383,7 @@ function CashUpTable({ rows, subtitle, from, to, onExport }: { rows: CashUpRow[]
   ]
   const sum = (f: (r: CashUpRow) => number) => rows.reduce((s, r) => s + f(r), 0)
   const foot = ['Total', '', ...PAYMENT_METHODS.map((m) => sum((r) => r.byMethod[m])), sum((r) => r.total), sum((r) => r.count)]
+  const page = useShowMore(rows)
   const spec: ExportSpec<CashUpRow> = { file: `gymli-cash-up-${from}-to-${to}`, title: 'Daily cash-up', subtitle, columns, rows, totals: foot }
   return (
     <Card className="p-28 max-md:p-18">
@@ -385,7 +410,7 @@ function CashUpTable({ rows, subtitle, from, to, onExport }: { rows: CashUpRow[]
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {page.visible.map((r) => (
                 <tr key={`${r.date}-${r.staff.uid}`} className="hover:bg-white">
                   <td className={td}>{formatDayMonth(r.date)}</td>
                   <td className={cx(td, 'font-semibold')}>{r.staff.name}</td>
@@ -416,6 +441,7 @@ function CashUpTable({ rows, subtitle, from, to, onExport }: { rows: CashUpRow[]
           </table>
         </div>
       )}
+      {page.footer}
     </Card>
   )
 }
@@ -500,6 +526,7 @@ function RenewalsReport(props: { members: Member[]; branches: Branch[]; today: L
   const prices = useMemo(() => Object.fromEntries(branches.map((b) => [b.id, b.prices])), [branches])
   const rows = useMemo(() => renewalsDue(members, today, days, prices), [members, today, days, prices])
   const atStake = rows.reduce((s, r) => s + (r.expectedCents ?? 0), 0)
+  const page = useShowMore(rows)
   const columns: ExportColumn<RenewalDue>[] = [
     { header: 'Member', value: (r) => `${r.member.firstName} ${r.member.lastName}`, width: 24 },
     { header: 'Number', value: (r) => memberCode(r.member.number), width: 10 },
@@ -536,7 +563,7 @@ function RenewalsReport(props: { members: Member[]; branches: Branch[]; today: L
       {rows.length === 0 ? (
         <EmptyState title="No renewals due">No one's access ends in the next {days} days.</EmptyState>
       ) : (
-        rows.map((r) => (
+        page.visible.map((r) => (
           <div key={r.member.id} className="flex items-center gap-14 border-t border-line-6 py-12">
             <span className={cx('flex h-32 min-w-48 items-center justify-center rounded-full px-10 text-13 font-bold tabular', r.daysLeft <= 3 ? 'bg-yellow' : 'bg-chip')}>{r.daysLeft === 0 ? 'Today' : `${r.daysLeft}d`}</span>
             <Link to={`/members/${r.member.id}`} className="min-w-0 flex-1">
@@ -555,6 +582,7 @@ function RenewalsReport(props: { members: Member[]; branches: Branch[]; today: L
           </div>
         ))
       )}
+      {page.footer}
     </Card>
   )
 }
