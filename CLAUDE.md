@@ -1,7 +1,8 @@
 # Gymli — rules for every session
 
-Gymli is a membership and door-access system for **one** South African gym
-(~2,000 members, one DigitalPersona 4500 fingerprint reader, one tripod turnstile).
+Gymli is a membership and door-access system for **one** South African gym group
+(Body Tone Gym, ~2,000 members per branch). Each **branch** has its own members, front desk,
+DigitalPersona 4500 fingerprint reader and tripod turnstile.
 There is a live pitch and then a 5-day trial at the gym. **A reliable, working product
 matters more than extra features.** Do not add scope.
 
@@ -44,7 +45,9 @@ Read this file before you change anything. If a request conflicts with it, ask f
 SA ID or passport number — required for new members, date of birth (from the SA ID), email (optional),
 emergency contact, staff notes); paid periods with **how they paid** (Cash, Card, EFT, Debit order —
 method only); access calendar per member; fingerprint enrolment and 1:N identification;
-turnstile control; door log; staff logins (front desk, manager); audit trail.
+turnstile control; door log; staff logins (front desk, manager); audit trail;
+**branches**: managers add branches and switch between them; front desk and check-in PCs belong to
+one branch and only see it; a member belongs to one home branch (other branches turn them away).
 
 **Out of scope — do not build:** money amounts, totals, finances, running debit orders,
 bookings/classes, reminders, member app, address, medical information.
@@ -115,9 +118,13 @@ implementations.
   templates, Firestore REST sync, engine), hardware projects behind `IFingerprintReader`/`ITurnstileRelay`,
   `Gymli.Checkin.App` (Avalonia kiosk; `Tokens.axaml` mirrors the web tokens).
 - Fingerprint enrolment is started in the web app (`enrolRequests` collection) and done by the check-in PC.
-- Firestore data: `members` (with `periods` array, soft-deleted payments), `templates` (ciphertext only),
+- Firestore data: `branches`, `members` (with `periods` array, soft-deleted payments), `templates` (ciphertext only),
   `doorLogs` (written by the PC only), `devices` (heartbeat), `enrolRequests`, `staff`, `audit` (add-only),
-  `counters/members`, `config/bootstrap`.
+  `counters/members` (one GY-number sequence across branches), `config/bootstrap`.
+- Branches: one database; every branch-owned doc (`members`, `doorLogs`, `devices`, `enrolRequests`) has
+  `branchId`, and `staff.branchId` (null for managers = all branches). `firestore.rules` enforces it
+  (front desk queries must filter on `branchId`). The check-in PC reads its branch from its own `staff` doc
+  and only syncs that branch. Current branch in the web app: `useGym().branch` (`src/lib/branch.ts`).
 
 ### Commands
 | | |

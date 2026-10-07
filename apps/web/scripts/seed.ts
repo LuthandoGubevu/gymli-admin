@@ -9,7 +9,11 @@
  *   grace@gymli.co.za     Manager
  *   zodwa@gymli.co.za     Front desk
  *   sibusiso@gymli.co.za  Front desk
- *   turnstile1@gymli.local  Check-in PC
+ *   turnstile1@gymli.local  Check-in PC (Sandton)
+ *   lindiwe@gymli.co.za   Front desk (Soweto)
+ *   turnstile2@gymli.local  Check-in PC (Soweto)
+ *
+ * Branches: Body Tone Sandton (the 30 members from the design) and Body Tone Soweto (5 more).
  */
 import { initializeApp } from 'firebase/app'
 import { connectAuthEmulator, createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth'
@@ -38,6 +42,18 @@ const auth = getAuth(app)
 const db = getFirestore(app)
 connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
 connectFirestoreEmulator(db, '127.0.0.1', 8080)
+
+const SANDTON = 'sandton'
+const SOWETO = 'soweto'
+
+/** Soweto members: first, last, cellphone, months paid, end of payment (days from today). */
+const SOWETO_MEMBERS: [string, string, string, number, number][] = [
+  ['Mandla', 'Khumalo', '0715550101', 1, 12],
+  ['Palesa', 'Mofokeng', '0725550102', 3, 40],
+  ['Sbu', 'Mthethwa', '0735550103', 1, -5],
+  ['Nokuthula', 'Dlamini', '0745550104', 6, 120],
+  ['Thando', 'Radebe', '0765550105', 1, 2],
+]
 
 /** Day offsets are relative to the design's "today", Thu 1 Oct 2026. */
 const d = (offset: number) => addDays(TODAY, offset)
@@ -81,10 +97,12 @@ async function main() {
     b.set(doc(db, 'config', 'bootstrap'), { uid: graceUid, at: serverTimestamp() })
     await b.commit()
   }
-  const others: [string, string, Who['role']][] = [
-    ['zodwa@gymli.co.za', 'Zodwa Ndaba', 'front_desk'],
-    ['sibusiso@gymli.co.za', 'Sibusiso Dube', 'front_desk'],
-    ['turnstile1@gymli.local', 'Turnstile 1', 'device'],
+  const others: [string, string, Who['role'], string][] = [
+    ['zodwa@gymli.co.za', 'Zodwa Ndaba', 'front_desk', SANDTON],
+    ['sibusiso@gymli.co.za', 'Sibusiso Dube', 'front_desk', SANDTON],
+    ['turnstile1@gymli.local', 'Turnstile 1', 'device', SANDTON],
+    ['lindiwe@gymli.co.za', 'Lindiwe Zulu', 'front_desk', SOWETO],
+    ['turnstile2@gymli.local', 'Turnstile 2', 'device', SOWETO],
   ]
   const who: Record<string, Who> = {}
   for (const [email, name, role] of others) {
@@ -92,8 +110,15 @@ async function main() {
     who[email.split('@')[0]] = { uid, name, role }
   }
   await as('grace@gymli.co.za')
-  for (const [email, name, role] of others) {
-    await setDoc(doc(db, 'staff', who[email.split('@')[0]].uid), { name, email, role, active: true, createdAt: serverTimestamp() })
+  // Branches first: front desk and check-in logins must belong to one
+  for (const [id, name] of [[SANDTON, 'Body Tone Sandton'], [SOWETO, 'Body Tone Soweto']]) {
+    await runTransaction(db, async (tx) => {
+      const auditId = audit(tx, grace, 'branch.create', id, `Added branch ${name}`)
+      tx.set(doc(db, 'branches', id), { name, createdAt: serverTimestamp(), lastAuditId: auditId })
+    })
+  }
+  for (const [email, name, role, branchId] of others) {
+    await setDoc(doc(db, 'staff', who[email.split('@')[0]].uid), { name, email, role, branchId, active: true, createdAt: serverTimestamp() })
   }
 
   // 2. Members, added and paid for by front desk staff
@@ -112,6 +137,7 @@ async function main() {
       tx.set(counterRef, { next: next + 1 })
       const auditId = audit(tx, staffFor[adder], 'member.create', memberRef.id, `Added ${spec.first} ${spec.last} (GY-${spec.number})`)
       tx.set(memberRef, {
+        branchId: SANDTON,
         number: spec.number,
         firstName: spec.first,
         lastName: spec.last,
@@ -177,6 +203,7 @@ async function main() {
   }
   await setDoc(doc(db, 'devices', device.uid), {
     name: 'Turnstile 1',
+    branchId: SANDTON,
     lastSeenAt: Date.now(),
     mode: 'simulation',
     readerConnected: true,
@@ -201,6 +228,7 @@ async function main() {
     const time = at(date, s.time)
     await setDoc(doc(db, 'doorLogs', crypto.randomUUID()), {
       deviceId: device.uid,
+      branchId: SANDTON,
       memberId: spec ? ids.get(spec.number)! : null,
       memberName: spec ? `${spec.first} ${spec.last}` : null,
       memberNumber: spec?.number ?? null,
@@ -214,8 +242,38 @@ async function main() {
     })
   }
 
+  // 4. Soweto: a few members of its own, added by its front desk and enrolled on its turnstile
+  await as('lindiwe@gymli.co.za')
+  const soweto: string[] = []
+  for (const [first, last, phone, months, endOffset] of SOWETO_MEMBERS) {
+    const memberRef = doc(collection(db, 'members'))
+    soweto.push(memberRef.id)
+    await runTransaction(db, async (tx) => {
+      const counterRef = doc(db, 'counters', 'members')
+      const number: number = (await tx.get(counterRef)).data()!.next
+      tx.set(counterRef, { next: number + 1 })
+      const auditId = audit(tx, who.lindiwe, 'member.create', memberRef.id, `Added ${first} ${last} (GY-${number})`)
+      tx.set(memberRef, { branchId: SOWETO, number, firstName: first, lastName: last, cellphone: phone, periods: [], fingerprint: null, deleted: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), lastAuditId: auditId })
+    })
+    const end = d(endOffset)
+    const start = addMonthsClamped(addDays(end, 1), -months)
+    const period = { id: crypto.randomUUID(), kind: 'months', qty: months, start, end: periodEnd('months', months, start), loggedBy: { uid: who.lindiwe.uid, name: who.lindiwe.name }, loggedAt: at(start, '07:00'), method: 'card' }
+    await runTransaction(db, async (tx) => {
+      const auditId = audit(tx, who.lindiwe, 'payment.create', memberRef.id, `Logged ${months} months`)
+      tx.update(memberRef, { periods: [period], updatedAt: serverTimestamp(), lastAuditId: auditId })
+    })
+  }
+  await as('turnstile2@gymli.local')
+  for (const id of soweto) {
+    await runTransaction(db, async (tx) => {
+      const auditId = audit(tx, who.turnstile2, 'fingerprint.enrol', id, 'Enrolled fingerprint')
+      tx.update(doc(db, 'members', id), { fingerprint: { finger: 'right_index', enrolledAt: at(d(-20), '06:05') }, updatedAt: serverTimestamp(), lastAuditId: auditId })
+    })
+  }
+  await setDoc(doc(db, 'devices', who.turnstile2.uid), { name: 'Turnstile 2', branchId: SOWETO, lastSeenAt: Date.now(), mode: 'simulation', readerConnected: true, relayConnected: true, pendingLogs: 0, appVersion: 'seed' })
+
   await signOut(auth)
-  console.log(`Done: ${MEMBERS.length} members, ${SCANS.length} scans. Sign in as zodwa@gymli.co.za / ${PASSWORD}`)
+  console.log(`Done: ${MEMBERS.length + SOWETO_MEMBERS.length} members in 2 branches, ${SCANS.length} scans. Sign in as zodwa@gymli.co.za / ${PASSWORD}`)
   process.exit(0)
 }
 

@@ -8,12 +8,15 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   increment,
   runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
-  type Transaction,
+  writeBatch,
+  type DocumentData,
+  type DocumentReference,
 } from 'firebase/firestore'
 import { periodEnd, periodLabel, type PeriodKind } from '../lib/access'
 import { formatDayMonth, isValidDate, type LocalDate } from '../lib/dates'
@@ -26,8 +29,13 @@ export class ActionError extends Error {}
 
 const actorOf = (s: Staff) => ({ uid: s.uid, name: s.name })
 
+/** A transaction or a write batch */
+interface Writer {
+  set(ref: DocumentReference, data: DocumentData): unknown
+}
+
 function writeAudit(
-  tx: Transaction,
+  tx: Writer,
   staff: Staff,
   entry: { action: string; entity: string; entityId: string; summary: string; before?: unknown; after?: unknown },
 ): string {
@@ -134,7 +142,7 @@ function detailsData(input: MemberInput, today: LocalDate, keep?: MemberDetails 
   }
 }
 
-export async function addMember(staff: Staff, input: MemberInput, today: LocalDate): Promise<{ id: string; number: number }> {
+export async function addMember(staff: Staff, input: MemberInput, today: LocalDate, branchId: string): Promise<{ id: string; number: number }> {
   const counterRef = doc(db, 'counters', 'members')
   const memberRef = doc(collection(db, 'members'))
   const idNumber = cleanId(input.idNumber)
@@ -158,6 +166,7 @@ export async function addMember(staff: Staff, input: MemberInput, today: LocalDa
     })
     tx.set(memberRef, {
       ...data,
+      branchId,
       periods: [],
       fingerprint: null,
       deleted: false,
@@ -236,6 +245,8 @@ export async function removeMember(staff: Staff, memberId: string): Promise<void
       periods: [],
       fingerprint: null,
       deleted: true,
+      // kept so the branch's check-in PC sees the removal and deletes its copy
+      branchId: snap.data().branchId ?? null,
       createdAt: snap.data().createdAt ?? serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastAuditId: auditId,
@@ -370,6 +381,7 @@ export async function startEnrolment(staff: Staff, m: Member): Promise<string> {
   const ref = doc(collection(db, 'enrolRequests'))
   await setDoc(ref, {
     memberId: m.id,
+    branchId: m.branchId,
     memberName: `${m.firstName} ${m.lastName}`,
     memberNumber: m.number,
     status: 'pending',
@@ -397,6 +409,8 @@ export interface NewStaffInput {
   email: string
   password: string
   role: Role
+  /** Required for front desk and check-in PCs; managers see every branch */
+  branchId: string | null
 }
 
 /**
@@ -405,6 +419,7 @@ export interface NewStaffInput {
  */
 export async function createStaff(manager: Staff, input: NewStaffInput): Promise<string> {
   if (manager.role !== 'manager') throw new ActionError('Only a manager can add staff')
+  if (input.role !== 'manager' && !input.branchId) throw new ActionError('Choose a branch')
   const secondary = initializeApp(firebaseConfig, `staff-signup-${Date.now()}`)
   try {
     const secondaryAuth = getAuth(secondary)
@@ -423,6 +438,7 @@ export async function createStaff(manager: Staff, input: NewStaffInput): Promise
         name: input.name.trim(),
         email: input.email.trim().toLowerCase(),
         role: input.role,
+        branchId: input.role === 'manager' ? null : input.branchId,
         active: true,
         createdAt: serverTimestamp(),
       })
@@ -447,6 +463,71 @@ export async function setStaffActive(manager: Staff, target: Staff, active: bool
     })
     tx.update(doc(db, 'staff', target.uid), { active })
   })
+}
+
+/* ---------------- Branches ---------------- */
+
+function checkBranchName(name: string): string {
+  const n = name.trim()
+  if (!n) throw new ActionError('Enter a branch name')
+  if (n.length > 60) throw new ActionError('Keep the name under 60 characters')
+  return n
+}
+
+export async function addBranch(manager: Staff, name: string): Promise<string> {
+  if (manager.role !== 'manager') throw new ActionError('Only a manager can add a branch')
+  const n = checkBranchName(name)
+  const ref = doc(collection(db, 'branches'))
+  await runTransaction(db, async (tx) => {
+    const auditId = writeAudit(tx, manager, { action: 'branch.create', entity: 'branch', entityId: ref.id, summary: `Added branch ${n}` })
+    tx.set(ref, { name: n, createdAt: serverTimestamp(), lastAuditId: auditId })
+  })
+  return ref.id
+}
+
+export async function renameBranch(manager: Staff, id: string, from: string, name: string): Promise<void> {
+  if (manager.role !== 'manager') throw new ActionError('Only a manager can rename a branch')
+  const n = checkBranchName(name)
+  const ref = doc(db, 'branches', id)
+  await runTransaction(db, async (tx) => {
+    const auditId = writeAudit(tx, manager, { action: 'branch.rename', entity: 'branch', entityId: id, summary: `Renamed branch ${from} to ${n}`, before: { name: from }, after: { name: n } })
+    tx.update(ref, { name: n, lastAuditId: auditId })
+  })
+}
+
+/**
+ * First-time setup: creates the first branch and puts every existing member and
+ * front-desk / check-in login in it. The branch, the logins and the first members are
+ * saved together, so a gym of normal size is set up in one go; very large lists continue
+ * in further batches.
+ */
+export async function setUpFirstBranch(manager: Staff, name: string): Promise<string> {
+  if (manager.role !== 'manager') throw new ActionError('Only a manager can add a branch')
+  const n = checkBranchName(name)
+  const branchRef = doc(collection(db, 'branches'))
+  const branchId = branchRef.id
+  const members = (await getDocs(collection(db, 'members'))).docs.filter((d) => !d.data().branchId)
+  const logins = (await getDocs(collection(db, 'staff'))).docs.filter((d) => d.data().role !== 'manager' && !d.data().branchId)
+  const FIRST = Math.max(0, 450 - logins.length)
+  const chunks = [members.slice(0, FIRST)]
+  for (let i = FIRST; i < members.length; i += 450) chunks.push(members.slice(i, i + 450))
+
+  for (const [i, chunk] of chunks.entries()) {
+    const batch = writeBatch(db)
+    const auditId = writeAudit(batch, manager, {
+      action: i === 0 ? 'branch.create' : 'branch.assign',
+      entity: 'branch',
+      entityId: branchId,
+      summary: i === 0 ? `Added branch ${n}; put ${members.length} existing members and ${logins.length} logins in it` : `Put ${chunk.length} more existing members in ${n}`,
+    })
+    if (i === 0) {
+      batch.set(branchRef, { name: n, createdAt: serverTimestamp(), lastAuditId: auditId })
+      for (const d of logins) batch.update(d.ref, { branchId })
+    }
+    for (const d of chunk) batch.update(d.ref, { branchId, updatedAt: serverTimestamp(), lastAuditId: auditId })
+    await batch.commit()
+  }
+  return branchId
 }
 
 export function authMessage(e: unknown): string {

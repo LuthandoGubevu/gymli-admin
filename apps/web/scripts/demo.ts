@@ -4,7 +4,8 @@
  *
  *   npm run demo -- you@yourgym.co.za 'your-password'
  *
- * - Adds the 30 sample members from the design, with payments relative to today.
+ * - Uses the first branch (or creates "Body Tone Sandton" if there is none yet).
+ * - Adds the 30 sample members from the design to it, with payments relative to today.
  * - Adds a check-in login "Turnstile 1" (saved in scripts/.demo-device.json on this PC),
  *   marks fingerprints as enrolled and writes today's scans to the door log.
  * - Then keeps the turnstile showing "online" while this window stays open (Ctrl+C to stop).
@@ -101,9 +102,22 @@ async function main() {
   }
   const me: Who = { uid: mgr.auth.currentUser!.uid, name: meSnap.data().name, role: 'manager' }
 
+  // The branch the demo goes into
+  const branches = (await getDocs(collection(mgr.db, 'branches'))).docs.sort((a, b) => String(a.data().name).localeCompare(String(b.data().name)))
+  let branchId = branches[0]?.id
+  if (!branchId) {
+    const ref = doc(collection(mgr.db, 'branches'))
+    await runTransaction(mgr.db, async (tx) => {
+      const auditId = audit(mgr.db, tx, me, 'branch.create', 'branch', ref.id, 'Added branch Body Tone Sandton')
+      tx.set(ref, { name: 'Body Tone Sandton', createdAt: serverTimestamp(), lastAuditId: auditId })
+    })
+    branchId = ref.id
+  }
+
   const already = await getDocs(query(collection(mgr.db, 'members'), where('cellphone', '==', MEMBERS[0].phone), limit(1)))
   const dev = connect('device')
   let device: Who
+  let deviceBranch = branchId
 
   if (!already.empty) {
     console.log('Demo members are already loaded. Keeping the turnstile online only.')
@@ -114,6 +128,7 @@ async function main() {
     const saved = JSON.parse(readFileSync(DEVICE_FILE, 'utf8')) as { email: string; password: string }
     await signInWithEmailAndPassword(dev.auth, saved.email, saved.password)
     device = { uid: dev.auth.currentUser!.uid, name: 'Turnstile 1', role: 'device' }
+    deviceBranch = (await getDoc(doc(dev.db, 'staff', device.uid))).data()?.branchId ?? branchId
   } else {
     console.log(`Loading demo data into ${config.projectId} / ${databaseId} for ${TODAY}, as ${me.name}`)
 
@@ -128,6 +143,7 @@ async function main() {
         tx.set(counterRef, { next: next + 1 })
         const auditId = audit(mgr.db, tx, me, 'member.create', 'member', memberRef.id, `Added ${spec.first} ${spec.last} (GY-${next})`)
         tx.set(memberRef, {
+          branchId,
           number: next,
           firstName: spec.first,
           lastName: spec.last,
@@ -187,7 +203,7 @@ async function main() {
     const uid = (await createUserWithEmailAndPassword(dev.auth, deviceEmail, devicePassword)).user.uid
     await runTransaction(mgr.db, async (tx) => {
       audit(mgr.db, tx, me, 'staff.create', 'staff', uid, 'Added Turnstile 1 as device')
-      tx.set(doc(mgr.db, 'staff', uid), { name: 'Turnstile 1', email: deviceEmail, role: 'device', active: true, createdAt: serverTimestamp() })
+      tx.set(doc(mgr.db, 'staff', uid), { name: 'Turnstile 1', email: deviceEmail, role: 'device', branchId, active: true, createdAt: serverTimestamp() })
     })
     writeFileSync(DEVICE_FILE, JSON.stringify({ email: deviceEmail, password: devicePassword }, null, 2))
     device = { uid, name: 'Turnstile 1', role: 'device' }
@@ -207,6 +223,7 @@ async function main() {
       const time = at(date, s.time)
       await setDoc(doc(dev.db, 'doorLogs', crypto.randomUUID()), {
         deviceId: device.uid,
+        branchId,
         memberId: spec ? ids.get(spec.number)!.id : null,
         memberName: spec ? `${spec.first} ${spec.last}` : null,
         memberNumber: spec ? ids.get(spec.number)!.number : null,
@@ -227,6 +244,7 @@ async function main() {
   const beat = () =>
     setDoc(doc(dev.db, 'devices', device.uid), {
       name: 'Turnstile 1',
+      branchId: deviceBranch,
       lastSeenAt: Date.now(),
       mode: 'simulation',
       readerConnected: true,

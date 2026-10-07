@@ -188,4 +188,9 @@ public static class Fs
     {
         ["fieldFilter"] = new JsonObject { ["field"] = new JsonObject { ["fieldPath"] = field }, ["op"] = op, ["value"] = value },
     };
+
+    public static JsonObject And(params JsonObject[] filters) => new()
+    {
+        ["compositeFilter"] = new JsonObject { ["op"] = "AND", ["filters"] = new JsonArray(filters.Cast<JsonNode>().ToArray()) },
+    };
 }

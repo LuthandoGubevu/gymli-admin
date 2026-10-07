@@ -1,5 +1,5 @@
 import { Timestamp, type DocumentData } from 'firebase/firestore'
-import type { Device, DoorLog, EnrolRequest, Member, Period, Staff, AuditEntry } from '../lib/types'
+import type { Branch, Device, DoorLog, EnrolRequest, Member, Period, Staff, AuditEntry } from '../lib/types'
 
 export const ms = (v: unknown): number => {
   if (v instanceof Timestamp) return v.toMillis()
@@ -18,17 +18,19 @@ export function toMember(id: string, d: DocumentData): Member {
     fingerprint: d.fingerprint ? { finger: d.fingerprint.finger, enrolledAt: ms(d.fingerprint.enrolledAt) } : null,
     createdAt: ms(d.createdAt),
     deleted: !!d.deleted,
+    branchId: d.branchId ?? null,
   }
 }
 
 export function toStaff(uid: string, d: DocumentData): Staff {
-  return { uid, name: d.name ?? '', email: d.email ?? '', role: d.role, active: d.active !== false }
+  return { uid, name: d.name ?? '', email: d.email ?? '', role: d.role, active: d.active !== false, branchId: d.branchId ?? null }
 }
 
 export function toDoorLog(id: string, d: DocumentData): DoorLog {
   return {
     id,
     deviceId: d.deviceId ?? '',
+    branchId: d.branchId ?? null,
     memberId: d.memberId ?? null,
     memberName: d.memberName ?? null,
     memberNumber: d.memberNumber ?? null,
@@ -46,6 +48,7 @@ export function toDevice(id: string, d: DocumentData): Device {
   return {
     id,
     name: d.name ?? 'Turnstile 1',
+    branchId: d.branchId ?? null,
     lastSeenAt: ms(d.lastSeenAt),
     mode: d.mode === 'hardware' ? 'hardware' : 'simulation',
     readerConnected: !!d.readerConnected,
@@ -53,6 +56,10 @@ export function toDevice(id: string, d: DocumentData): Device {
     pendingLogs: d.pendingLogs ?? 0,
     appVersion: d.appVersion ?? '',
   }
+}
+
+export function toBranch(id: string, d: DocumentData): Branch {
+  return { id, name: d.name ?? '' }
 }
 
 export function toEnrol(id: string, d: DocumentData): EnrolRequest {

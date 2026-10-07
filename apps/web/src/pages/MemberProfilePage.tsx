@@ -19,16 +19,16 @@ import { db } from '../lib/firebase'
 import { daysAgoText, loggedByText, profilePill, viewMember } from '../lib/present'
 import { initials, maskCellphone, memberCode, memberName, type DoorLog, type Member, type Period } from '../lib/types'
 
-function useMemberLogs(memberId: string | undefined) {
+function useMemberLogs(memberId: string | undefined, branchId: string | null | undefined) {
   const [logs, setLogs] = useState<DoorLog[]>([])
   useEffect(() => {
-    if (!memberId) return
+    if (!memberId || !branchId) return
     return onSnapshot(
-      query(collection(db, 'doorLogs'), where('memberId', '==', memberId), orderBy('at', 'desc'), limit(300)),
+      query(collection(db, 'doorLogs'), where('branchId', '==', branchId), where('memberId', '==', memberId), orderBy('at', 'desc'), limit(300)),
       (snap) => setLogs(snap.docs.map((d) => toDoorLog(d.id, d.data()))),
       () => setLogs([]),
     )
-  }, [memberId])
+  }, [memberId, branchId])
   return logs
 }
 
@@ -39,7 +39,7 @@ export function MemberProfilePage() {
   const staff = useStaff()
   const today = useToday()
   const { member, loading } = useMember(id)
-  const logs = useMemberLogs(id)
+  const logs = useMemberLogs(id, member?.branchId)
   const [paying, setPaying] = useState(false)
   const [editingPeriod, setEditingPeriod] = useState<Period | null>(null)
   const [enrolling, setEnrolling] = useState(false)

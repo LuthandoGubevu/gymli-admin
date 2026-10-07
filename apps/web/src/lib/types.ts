@@ -21,6 +21,13 @@ export interface Staff {
   email: string
   role: Role
   active: boolean
+  /** Front desk and check-in PCs belong to one branch; managers see all (null). */
+  branchId: string | null
+}
+
+export interface Branch {
+  id: string
+  name: string
 }
 
 export interface Period {
@@ -94,11 +101,14 @@ export interface Member {
   fingerprint: Fingerprint | null
   createdAt: number
   deleted: boolean
+  /** Home branch. Missing only on records from before branches were set up. */
+  branchId: string | null
 }
 
 export interface DoorLog {
   id: string
   deviceId: string
+  branchId: string | null
   memberId: string | null
   memberName: string | null
   memberNumber: number | null
@@ -116,6 +126,7 @@ export interface DoorLog {
 export interface Device {
   id: string
   name: string
+  branchId: string | null
   lastSeenAt: number
   mode: 'simulation' | 'hardware'
   readerConnected: boolean

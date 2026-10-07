@@ -23,7 +23,7 @@ export function MemberFormModal({ open, onClose, member, onAdded }: Props) {
   const staff = useStaff()
   const today = useToday()
   const toast = useToast()
-  const { members } = useGym()
+  const { members, branch } = useGym()
   const { details, loading: detailsLoading } = useMemberDetails(member?.id)
   const [form, setForm] = useState<MemberInput>(EMPTY_MEMBER_INPUT)
   const [errors, setErrors] = useState<MemberErrors>({})
@@ -80,7 +80,8 @@ export function MemberFormModal({ open, onClose, member, onAdded }: Props) {
         toast('Details saved')
         onClose()
       } else {
-        const { id, number } = await addMember(staff, input, today)
+        if (!branch) throw new Error('No branch chosen')
+        const { id, number } = await addMember(staff, input, today, branch.id)
         toast(`${form.firstName.trim()} added as ${memberCode(number)}`)
         onAdded?.(id)
       }

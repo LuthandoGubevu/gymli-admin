@@ -7,8 +7,9 @@ import { collection, doc, limit, onSnapshot, orderBy, query, where } from 'fireb
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { auth, db } from '../lib/firebase'
 import { todayAtGym, type LocalDate } from '../lib/dates'
-import type { Device, DoorLog, Member, Staff } from '../lib/types'
-import { toDevice, toDoorLog, toMember, toStaff } from './convert'
+import type { Branch, Device, DoorLog, Member, Staff } from '../lib/types'
+import { pickBranch } from '../lib/branch'
+import { toBranch, toDevice, toDoorLog, toMember, toStaff } from './convert'
 
 /* ---------------- Clock ---------------- */
 
@@ -95,6 +96,11 @@ export interface Loadable<T> {
 }
 
 interface GymData {
+  /** All branches (managers switch between them; front desk sees only theirs). */
+  branches: Loadable<Branch[]>
+  /** The branch everything below is for; null until branches are set up. */
+  branch: Branch | null
+  setBranch: (id: string) => void
   members: Loadable<Member[]>
   todayLogs: Loadable<DoorLog[]>
   devices: Loadable<Device[]>
@@ -106,8 +112,22 @@ const GymContext = createContext<GymData | null>(null)
 
 const LOAD_ERROR = 'Could not load. Check the internet connection.'
 
+const BRANCH_KEY = 'gymli.branch'
+
+function readChoice(): string | null {
+  try {
+    return localStorage.getItem(BRANCH_KEY)
+  } catch {
+    return null
+  }
+}
+
 export function GymDataProvider({ children }: { children: ReactNode }) {
   const today = useToday()
+  const staff = useStaff()
+  const isManager = staff.role === 'manager'
+  const [branches, setBranches] = useState(empty<Branch[]>([]))
+  const [chosen, setChosen] = useState<string | null>(readChoice)
   const [members, setMembers] = useState(empty<Member[]>([]))
   const [todayLogs, setTodayLogs] = useState(empty<DoorLog[]>([]))
   const [devices, setDevices] = useState(empty<Device[]>([]))
@@ -116,52 +136,95 @@ export function GymDataProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       onSnapshot(
-        query(collection(db, 'members'), where('deleted', '==', false)),
+        collection(db, 'branches'),
         (snap) => {
-          const list = snap.docs.map((d) => toMember(d.id, d.data()))
-          list.sort((a, b) => a.firstName.localeCompare(b.firstName) || a.lastName.localeCompare(b.lastName))
-          setMembers({ data: list, loading: false, error: null })
-        },
-        () => setMembers((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
-      ),
-    [],
-  )
-
-  useEffect(
-    () =>
-      onSnapshot(
-        query(collection(db, 'doorLogs'), where('date', '==', today), orderBy('at', 'desc'), limit(500)),
-        (snap) => setTodayLogs({ data: snap.docs.map((d) => toDoorLog(d.id, d.data())), loading: false, error: null }),
-        () => setTodayLogs((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
-      ),
-    [today],
-  )
-
-  useEffect(
-    () =>
-      onSnapshot(
-        collection(db, 'devices'),
-        (snap) => setDevices({ data: snap.docs.map((d) => toDevice(d.id, d.data())), loading: false, error: null }),
-        () => setDevices((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
-      ),
-    [],
-  )
-
-  useEffect(
-    () =>
-      onSnapshot(
-        collection(db, 'staff'),
-        (snap) => {
-          const list = snap.docs.map((d) => toStaff(d.id, d.data()))
+          const list = snap.docs.map((d) => toBranch(d.id, d.data()))
           list.sort((a, b) => a.name.localeCompare(b.name))
-          setStaffList({ data: list, loading: false, error: null })
+          setBranches({ data: list, loading: false, error: null })
         },
-        () => setStaffList((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
+        () => setBranches((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
       ),
     [],
   )
 
-  const value = useMemo(() => ({ members, todayLogs, devices, staffList }), [members, todayLogs, devices, staffList])
+  const branch = useMemo(() => pickBranch(staff, branches.data, chosen), [staff, branches.data, chosen])
+  const branchId = branch?.id ?? null
+  const setBranch = useMemo(
+    () => (id: string) => {
+      setChosen(id)
+      try {
+        localStorage.setItem(BRANCH_KEY, id)
+      } catch {
+        /* remembering the choice is a convenience only */
+      }
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!branchId) {
+      setMembers({ data: [], loading: false, error: null })
+      return
+    }
+    setMembers(empty<Member[]>([]))
+    return onSnapshot(
+      query(collection(db, 'members'), where('branchId', '==', branchId), where('deleted', '==', false)),
+      (snap) => {
+        const list = snap.docs.map((d) => toMember(d.id, d.data()))
+        list.sort((a, b) => a.firstName.localeCompare(b.firstName) || a.lastName.localeCompare(b.lastName))
+        setMembers({ data: list, loading: false, error: null })
+      },
+      () => setMembers((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
+    )
+  }, [branchId])
+
+  useEffect(() => {
+    if (!branchId) {
+      setTodayLogs({ data: [], loading: false, error: null })
+      return
+    }
+    setTodayLogs(empty<DoorLog[]>([]))
+    return onSnapshot(
+      query(collection(db, 'doorLogs'), where('branchId', '==', branchId), where('date', '==', today), orderBy('at', 'desc'), limit(500)),
+      (snap) => setTodayLogs({ data: snap.docs.map((d) => toDoorLog(d.id, d.data())), loading: false, error: null }),
+      () => setTodayLogs((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
+    )
+  }, [today, branchId])
+
+  useEffect(() => {
+    if (!branchId) {
+      setDevices({ data: [], loading: false, error: null })
+      return
+    }
+    setDevices(empty<Device[]>([]))
+    return onSnapshot(
+      query(collection(db, 'devices'), where('branchId', '==', branchId)),
+      (snap) => setDevices({ data: snap.docs.map((d) => toDevice(d.id, d.data())), loading: false, error: null }),
+      () => setDevices((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
+    )
+  }, [branchId])
+
+  // Only managers see the list of logins (Settings)
+  useEffect(() => {
+    if (!isManager) {
+      setStaffList({ data: [], loading: false, error: null })
+      return
+    }
+    return onSnapshot(
+      collection(db, 'staff'),
+      (snap) => {
+        const list = snap.docs.map((d) => toStaff(d.id, d.data()))
+        list.sort((a, b) => a.name.localeCompare(b.name))
+        setStaffList({ data: list, loading: false, error: null })
+      },
+      () => setStaffList((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
+    )
+  }, [isManager])
+
+  const value = useMemo(
+    () => ({ branches, branch, setBranch, members, todayLogs, devices, staffList }),
+    [branches, branch, setBranch, members, todayLogs, devices, staffList],
+  )
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>
 }
 

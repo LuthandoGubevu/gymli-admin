@@ -4,7 +4,8 @@
 - [ ] Firebase project ready: Firestore in `africa-south1`, Email/Password on ([deployment.md](deployment.md) §1)
 - [ ] `npm run deploy` done; web app opens at `https://<project>.web.app`
 - [ ] First manager created; front-desk logins made for every staff member on the trial
-- [ ] Check-in login made (Settings → Check-in PCs); email + password written down for the PC
+- [ ] Branches named (first sign-in as manager, then Settings → Branches); front desk logins each in their branch
+- [ ] Check-in login made per branch (Settings → Check-in PCs, branch chosen); email + password written down for that PC
 - [ ] Gym's member list exported as CSV (name, cellphone, paid until) and imported (Settings → Import members); spot-check 5 members
 - [ ] Spare: USB relay, USB extension for the reader, printed copy of this page
 

@@ -15,6 +15,14 @@ service cloud.firestore {
     function isManager() { return active() && me().role == 'manager'; }
     function isDevice() { return active() && me().role == 'device'; }
 
+    // ---------- Branches ----------
+    // Front desk and check-in PCs belong to one branch (staff.branchId). Managers see every branch.
+    function myBranch() { return me().get('branchId', null); }
+    function inMyBranch(b) { return isManager() || (b != null && b == myBranch()); }
+    // existsAfter: the branch may be created in the same batch (first-time setup)
+    function branchExists(b) { return b is string && existsAfter(/databases/$(database)/documents/branches/$(b)); }
+    function memberPath(id) { return /databases/$(database)/documents/members/$(id); }
+
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     // A member change must come with a new audit entry written in the same transaction.
@@ -28,11 +36,14 @@ service cloud.firestore {
 
     // ---------- Staff and devices (logins) ----------
     match /staff/{uid} {
-      allow read: if request.auth.uid == uid || isStaff();
+      allow read: if request.auth.uid == uid || isManager();
       allow create, update: if isManager()
         && request.resource.data.role in ['front_desk', 'manager', 'device']
         && request.resource.data.name is string
         && request.resource.data.active is bool
+        // managers see every branch; everyone else belongs to one that exists
+        && ((request.resource.data.role == 'manager' && request.resource.data.get('branchId', null) == null)
+            || (request.resource.data.role != 'manager' && branchExists(request.resource.data.get('branchId', null))))
         // a manager cannot switch themselves off or demote themselves
         && (uid != request.auth.uid || (request.resource.data.active == true && request.resource.data.role == 'manager'));
       // First manager only: allowed once, while config/bootstrap does not exist.
@@ -52,6 +63,16 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /branches/{branchId} {
+      allow read: if active();
+      allow create, update: if isManager()
+        && request.resource.data.keys().hasOnly(['name', 'createdAt', 'lastAuditId'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+        && withAudit();
+      allow delete: if false;
+    }
+
     // ---------- Members (with their paid periods) ----------
     function validMember(d) {
       return d.number is int
@@ -60,6 +81,7 @@ service cloud.firestore {
         && d.cellphone is string && d.cellphone.size() <= 20
         && d.periods is list && d.periods.size() <= 400
         && d.deleted is bool
+        && branchExists(d.get('branchId', null))
         && d.updatedAt == request.time;
     }
 
@@ -83,9 +105,10 @@ service cloud.firestore {
     }
 
     match /members/{memberId} {
-      allow read: if isStaff() || isDevice();
+      allow read: if (isStaff() || isDevice()) && inMyBranch(resource.data.get('branchId', null));
 
       allow create: if isStaff()
+        && inMyBranch(request.resource.data.branchId)
         && validMember(request.resource.data)
         && request.resource.data.deleted == false
         && request.resource.data.periods.size() == 0
@@ -96,6 +119,9 @@ service cloud.firestore {
 
       // Staff: details and payments. Payment edits/deletes and removing a member: manager only.
       allow update: if isStaff()
+        && inMyBranch(resource.data.get('branchId', null))
+        // only a manager moves a member to another branch
+        && (isManager() || request.resource.data.branchId == resource.data.branchId)
         && validMember(request.resource.data)
         && request.resource.data.number == resource.data.number
         && resource.data.deleted == false
@@ -105,6 +131,7 @@ service cloud.firestore {
 
       // Check-in PC: only records that a fingerprint was enrolled.
       allow update: if isDevice()
+        && inMyBranch(resource.data.get('branchId', null))
         && resource.data.deleted == false
         && changed().hasOnly(['fingerprint', 'updatedAt', 'lastAuditId'])
         && request.resource.data.updatedAt == request.time
@@ -115,13 +142,17 @@ service cloud.firestore {
 
     // ---------- Members: personal details (never read by the check-in PC) ----------
     function memberExistsAfter(memberId) {
-      return existsAfter(/databases/$(database)/documents/members/$(memberId))
-        && getAfter(/databases/$(database)/documents/members/$(memberId)).data.deleted == false;
+      return existsAfter(memberPath(memberId))
+        && getAfter(memberPath(memberId)).data.deleted == false
+        && inMyBranch(getAfter(memberPath(memberId)).data.branchId);
+    }
+    function memberInMyBranch(memberId) {
+      return exists(memberPath(memberId)) && inMyBranch(get(memberPath(memberId)).data.get('branchId', null));
     }
 
     // Email, date of birth, last 3 characters of the ID, emergency contact, notes: all staff.
     match /members/{memberId}/private/details {
-      allow read: if isStaff();
+      allow read: if isStaff() && memberInMyBranch(memberId);
       allow create, update: if isStaff()
         && memberExistsAfter(memberId)
         && request.resource.data.keys().hasOnly(['email', 'dateOfBirth', 'idType', 'idLast3',
@@ -168,17 +199,18 @@ service cloud.firestore {
 
     // ---------- Fingerprint templates (encrypted on the check-in PC) ----------
     match /templates/{memberId} {
-      allow read: if isDevice();
-      allow create, update: if isDevice()
+      allow read: if isDevice() && memberInMyBranch(memberId);
+      allow create, update: if isDevice() && memberInMyBranch(memberId)
         && request.resource.data.cipher is string && request.resource.data.cipher.size() < 20000;
-      allow delete: if isDevice() || isManager();
+      allow delete: if (isDevice() && memberInMyBranch(memberId)) || isManager();
     }
 
     // ---------- Door log (written only by the check-in PC) ----------
     match /doorLogs/{logId} {
-      allow read: if isStaff();
+      allow read: if isStaff() && inMyBranch(resource.data.get('branchId', null));
       allow create: if isDevice()
         && request.resource.data.deviceId == request.auth.uid
+        && request.resource.data.branchId == myBranch()
         && request.resource.data.result in ['allowed', 'denied']
         && request.resource.data.at is int
         && request.resource.data.date is string;
@@ -187,22 +219,27 @@ service cloud.firestore {
 
     // ---------- Check-in PCs: heartbeat and status ----------
     match /devices/{deviceId} {
-      allow read: if isStaff() || (isDevice() && deviceId == request.auth.uid);
-      allow create, update: if isDevice() && deviceId == request.auth.uid;
+      allow read: if (isStaff() && inMyBranch(resource.data.get('branchId', null))) || (isDevice() && deviceId == request.auth.uid);
+      allow create, update: if isDevice() && deviceId == request.auth.uid
+        && request.resource.data.branchId == myBranch();
       allow delete: if isManager();
     }
 
     // ---------- Fingerprint enrolment, started from the web app ----------
     match /enrolRequests/{id} {
-      allow read: if isStaff() || isDevice();
+      allow read: if (isStaff() || isDevice()) && inMyBranch(resource.data.get('branchId', null));
       allow create: if isStaff()
         && request.resource.data.status == 'pending'
         && request.resource.data.step == 0
         && request.resource.data.requestedBy.uid == request.auth.uid
-        && exists(/databases/$(database)/documents/members/$(request.resource.data.memberId));
-      allow update: if (isStaff() && changed().hasOnly(['captureSeq', 'status', 'updatedAt'])
+        && exists(memberPath(request.resource.data.memberId))
+        && request.resource.data.branchId == get(memberPath(request.resource.data.memberId)).data.branchId
+        && inMyBranch(request.resource.data.branchId);
+      allow update: if inMyBranch(resource.data.get('branchId', null))
+                    && request.resource.data.branchId == resource.data.branchId
+                    && ((isStaff() && changed().hasOnly(['captureSeq', 'status', 'updatedAt'])
                           && request.resource.data.status in ['pending', 'scanning', 'cancelled'])
-                    || isDevice();
+                        || isDevice());
       allow delete: if false;
     }
 

@@ -1,17 +1,17 @@
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
-import { Check, FileUp, KeyRound, MonitorSmartphone, Plus, Usb, UserPlus, WifiOff } from 'lucide-react'
+import { Building2, Check, FileUp, KeyRound, MonitorSmartphone, Pencil, Plus, Usb, UserPlus, WifiOff } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Avatar, Button, Card, CardTitle, cx, EmptyState, ErrorNote, PageHeader, Pill, SkeletonRows, TextField } from '../components/ui'
 import { Modal } from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
-import { addMember, authMessage, EMPTY_MEMBER_INPUT, createStaff, logPayment, setStaffActive, type NewStaffInput } from '../data/actions'
+import { addBranch, addMember, authMessage, EMPTY_MEMBER_INPUT, createStaff, logPayment, renameBranch, setStaffActive, type NewStaffInput } from '../data/actions'
 import { toAudit } from '../data/convert'
 import { useGym, useNow, useStaff, useToday } from '../data/store'
 import { importedPeriod, parseMemberCsv, type ImportRow } from '../lib/csvImport'
 import { dateAtGym, formatDayMonth, formatSmart, timeAtGym } from '../lib/dates'
 import { db } from '../lib/firebase'
-import { initials, isDeviceOnline, ROLE_LABEL, type AuditEntry, type Device, type Role, type Staff } from '../lib/types'
+import { initials, isDeviceOnline, ROLE_LABEL, type AuditEntry, type Branch, type Device, type Role, type Staff } from '../lib/types'
 
 export function SettingsPage() {
   const me = useStaff()
@@ -24,6 +24,7 @@ export function SettingsPage() {
   return (
     <>
       <PageHeader eyebrow="Managers only" title="Settings" />
+      <BranchesCard />
       <div className="grid grid-cols-2 items-start gap-16 max-lg:grid-cols-1">
         <StaffCard />
         <DevicesCard />
@@ -34,12 +35,96 @@ export function SettingsPage() {
   )
 }
 
+function BranchesCard() {
+  const me = useStaff()
+  const toast = useToast()
+  const { branches } = useGym()
+  const [editing, setEditing] = useState<Branch | 'new' | null>(null)
+  return (
+    <Card className="p-28 max-md:p-18">
+      <div className="mb-10 flex items-center gap-14">
+        <CardTitle size={32}>Branches</CardTitle>
+        <div className="flex-1" />
+        <Button size="sm" icon={Plus} onClick={() => setEditing('new')}>
+          Add branch
+        </Button>
+      </div>
+      {branches.loading ? (
+        <SkeletonRows rows={2} />
+      ) : (
+        branches.data.map((b) => (
+          <div key={b.id} className="flex items-center gap-14 border-t border-line-6 py-12">
+            <span className="flex size-42 items-center justify-center rounded-full bg-chip">
+              <Building2 size={18} />
+            </span>
+            <div className="min-w-0 flex-1 truncate text-16 font-semibold">{b.name}</div>
+            <Button variant="ghost" size="sm" icon={Pencil} onClick={() => setEditing(b)}>
+              Rename
+            </Button>
+          </div>
+        ))
+      )}
+      <BranchModal
+        branch={editing}
+        onClose={() => setEditing(null)}
+        onSave={async (name) => {
+          if (editing === 'new') {
+            await addBranch(me, name)
+            toast(`${name.trim()} added`)
+          } else if (editing) {
+            await renameBranch(me, editing.id, editing.name, name)
+            toast('Branch renamed')
+          }
+          setEditing(null)
+        }}
+      />
+    </Card>
+  )
+}
+
+export function BranchModal({ branch, onClose, onSave }: { branch: Branch | 'new' | null; onClose: () => void; onSave: (name: string) => Promise<void> }) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!branch) return
+    setName(branch === 'new' ? '' : branch.name)
+    setError(null)
+    setBusy(false)
+  }, [branch])
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSave(name)
+    } catch (e) {
+      setError(authMessage(e))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal open={!!branch} onClose={onClose} locked={busy} width="md" eyebrow="Branches" title={branch === 'new' ? 'Add branch' : 'Rename branch'}>
+      <div className="flex flex-col gap-16">
+        <TextField label="Branch name" value={name} onChange={(e) => setName(e.target.value)} placeholder="For example Body Tone Soweto" />
+        {error && <ErrorNote>{error}</ErrorNote>}
+        <div className="flex justify-end gap-10">
+          <Button variant="ghost" size="xl" className="border-line-14 px-26" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="xl" icon={Check} loading={busy} onClick={save}>{branch === 'new' ? 'Add branch' : 'Save'}</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function StaffCard() {
   const me = useStaff()
   const toast = useToast()
-  const { staffList } = useGym()
+  const { staffList, branches } = useGym()
   const [adding, setAdding] = useState<Role | null>(null)
   const people = staffList.data.filter((s) => s.role !== 'device')
+  const branchName = (s: Staff) => (s.role === 'manager' ? 'All branches' : (branches.data.find((b) => b.id === s.branchId)?.name ?? 'No branch'))
   return (
     <Card className="p-28 max-md:p-18">
       <div className="mb-10 flex items-center gap-14">
@@ -60,7 +145,7 @@ function StaffCard() {
                 {s.name} {s.uid === me.uid && <span className="font-normal text-muted">· you</span>}
               </div>
               <div className="mt-2 truncate text-13 text-muted">
-                {ROLE_LABEL[s.role]} · {s.email}
+                {ROLE_LABEL[s.role]} · {branchName(s)} · {s.email}
               </div>
             </div>
             {!s.active && <Pill tone="neutral" size="sm">Switched off</Pill>}
@@ -86,10 +171,10 @@ function StaffCard() {
 }
 
 function DevicesCard() {
-  const { staffList, devices } = useGym()
+  const { staffList, devices, branch } = useGym()
   const now = useNow()
   const [adding, setAdding] = useState(false)
-  const logins = staffList.data.filter((s) => s.role === 'device')
+  const logins = staffList.data.filter((s) => s.role === 'device' && s.branchId === branch?.id)
   const ref = useRef<HTMLDivElement>(null)
   const { hash } = useLocation()
   useEffect(() => {
@@ -100,6 +185,7 @@ function DevicesCard() {
     <Card className="p-28 max-md:p-18">
       <div className="mb-10 flex items-center gap-14">
         <CardTitle size={32}>Check-in PCs</CardTitle>
+        {branch && <span className="text-14 text-muted">{branch.name}</span>}
         <div className="flex-1" />
         <Button size="sm" icon={Plus} variant="outline" onClick={() => setAdding(true)}>
           Add check-in login
@@ -107,7 +193,7 @@ function DevicesCard() {
       </div>
       {logins.length === 0 ? (
         <EmptyState icon={MonitorSmartphone} title="No check-in PC yet">
-          Add a check-in login, then enter it in Gymli Check-in on the reception PC.
+          Add a check-in login for this branch, then enter it in Gymli Check-in on the reception PC.
         </EmptyState>
       ) : (
         logins.map((s) => {
@@ -173,23 +259,27 @@ function randomPassword(): string {
 function NewLoginModal({ role, onClose }: { role: Role | null; onClose: () => void }) {
   const me = useStaff()
   const toast = useToast()
+  const { branches, branch } = useGym()
   const isDevice = role === 'device'
-  const [form, setForm] = useState<NewStaffInput>({ name: '', email: '', password: '', role: 'front_desk' })
+  const [form, setForm] = useState<NewStaffInput>({ name: '', email: '', password: '', role: 'front_desk', branchId: null })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<NewStaffInput | null>(null)
 
   useEffect(() => {
     if (!role) return
-    setForm(isDevice ? { name: 'Turnstile 1', email: 'turnstile1@gymli.local', password: randomPassword(), role: 'device' } : { name: '', email: '', password: '', role: 'front_desk' })
+    const branchId = branch?.id ?? null
+    const slug = (branch?.name ?? 'branch').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    setForm(isDevice ? { name: 'Turnstile 1', email: `checkin-${slug}@gymli.local`, password: randomPassword(), role: 'device', branchId } : { name: '', email: '', password: '', role: 'front_desk', branchId })
     setError(null)
     setCreated(null)
     setBusy(false)
-  }, [role, isDevice])
+  }, [role, isDevice, branch?.id])
 
   async function save() {
     if (!form.name.trim() || !form.email.includes('@')) return setError('Enter a name and an email')
     if (form.password.length < 8) return setError('Use at least 8 characters for the password')
+    if (form.role !== 'manager' && !form.branchId) return setError('Choose a branch')
     setBusy(true)
     setError(null)
     try {
@@ -234,7 +324,20 @@ function NewLoginModal({ role, onClose }: { role: Role | null; onClose: () => vo
                   </button>
                 ))}
               </div>
-              <div className="mt-8 ml-20 text-12 text-muted">Managers can also change and delete payments, remove members and see the audit log.</div>
+              <div className="mt-8 ml-20 text-12 text-muted">Managers see every branch, can change and delete payments, remove members and see the audit log.</div>
+            </div>
+          )}
+          {form.role !== 'manager' && (
+            <div>
+              <div className="mb-8 text-13 font-medium text-muted">Branch</div>
+              <div role="radiogroup" className="flex flex-wrap gap-4 rounded-tile bg-field p-5">
+                {branches.data.map((b) => (
+                  <button key={b.id} type="button" role="radio" aria-checked={form.branchId === b.id} onClick={() => setForm({ ...form, branchId: b.id })} className={cx('flex-1 rounded-full px-22 py-11 text-14 whitespace-nowrap', form.branchId === b.id ? 'bg-ink font-semibold text-white' : 'font-medium text-ink-2')}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-8 ml-20 text-12 text-muted">{isDevice ? 'This PC only lets in members of this branch.' : 'They will only see this branch.'}</div>
             </div>
           )}
           {error && <ErrorNote>{error}</ErrorNote>}
@@ -252,7 +355,7 @@ function ImportCard() {
   const me = useStaff()
   const today = useToday()
   const toast = useToast()
-  const { members } = useGym()
+  const { members, branch } = useGym()
   const fileRef = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<ImportRow[] | null>(null)
   const [progress, setProgress] = useState<{ done: number; total: number; failed: number } | null>(null)
@@ -263,6 +366,7 @@ function ImportCard() {
   const bad = rows?.filter((r) => r.error) ?? []
 
   async function run() {
+    if (!branch) return
     setProgress({ done: 0, total: ok.length, failed: 0 })
     let done = 0
     let failed = 0
@@ -280,6 +384,7 @@ function ImportCard() {
             idNumber: r.idNumber,
           },
           today,
+          branch.id,
         )
         if (r.paidUntil) {
           const p = importedPeriod(r.paidUntil, today)
@@ -300,6 +405,7 @@ function ImportCard() {
     <Card className="p-28 max-md:p-18">
       <div className="mb-10 flex flex-wrap items-center gap-14">
         <CardTitle size={32}>Import members</CardTitle>
+        {branch && <span className="text-14 text-muted">into {branch.name}</span>}
         <div className="flex-1" />
         <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={async (e) => {
           const f = e.target.files?.[0]

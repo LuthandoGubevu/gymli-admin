@@ -13,16 +13,20 @@ import { ScanRow } from './TodayPage'
 
 type ResultFilter = 'all' | 'allowed' | 'denied'
 
-function useDayLogs(day: LocalDate) {
+function useDayLogs(day: LocalDate, branchId: string | null) {
   const [state, setState] = useState<{ logs: DoorLog[]; loading: boolean; error: string | null }>({ logs: [], loading: true, error: null })
   useEffect(() => {
+    if (!branchId) {
+      setState({ logs: [], loading: false, error: null })
+      return
+    }
     setState((s) => ({ ...s, loading: true }))
     return onSnapshot(
-      query(collection(db, 'doorLogs'), where('date', '==', day), orderBy('at', 'desc'), limit(2000)),
+      query(collection(db, 'doorLogs'), where('branchId', '==', branchId), where('date', '==', day), orderBy('at', 'desc'), limit(2000)),
       (snap) => setState({ logs: snap.docs.map((d) => toDoorLog(d.id, d.data())), loading: false, error: null }),
       () => setState({ logs: [], loading: false, error: 'Could not load the door log. Check the internet connection.' }),
     )
-  }, [day])
+  }, [day, branchId])
   return state
 }
 
@@ -31,8 +35,8 @@ export function DoorLogPage() {
   const [params, setParams] = useSearchParams()
   const day = params.get('date') || today
   const result = (params.get('result') as ResultFilter) || 'all'
-  const { logs, loading, error } = useDayLogs(day)
-  const { members } = useGym()
+  const { members, branch } = useGym()
+  const { logs, loading, error } = useDayLogs(day, branch?.id ?? null)
   const views = useMemo(() => members.data.map((m) => viewMember(m, today)), [members.data, today])
 
   const shown = logs.filter((l) => result === 'all' || l.result === result)

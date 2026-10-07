@@ -15,6 +15,7 @@ public sealed record EnrolRequest(string Id, string MemberId, string MemberName,
 public sealed class SyncService
 {
     private const string CursorKey = "members.cursor";
+    private const string BranchKey = "branch";
     private static readonly TimeSpan CursorOverlap = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan HeartbeatEvery = TimeSpan.FromSeconds(15);
 
@@ -23,6 +24,10 @@ public sealed class SyncService
     private readonly CheckinSettings _settings;
     private readonly Func<(bool reader, bool relay)> _hardware;
     private DateTimeOffset _lastHeartbeat = DateTimeOffset.MinValue;
+    private string? _branchId;
+
+    /// <summary>The branch this PC belongs to (from its check-in login). Only that branch's members are kept.</summary>
+    public string? BranchId => _branchId;
 
     public DateTimeOffset LastSuccess { get; private set; } = DateTimeOffset.MinValue;
     public string? LastError { get; private set; }
@@ -67,11 +72,38 @@ public sealed class SyncService
 
     public async Task SyncOnceAsync(CancellationToken ct)
     {
+        await LoadBranchAsync(force: DateTimeOffset.UtcNow - _lastHeartbeat > HeartbeatEvery, ct);
         await PullMembersAsync(ct);
         await PushDoorLogsAsync(ct);
         await PollEnrolRequestsAsync(ct);
         if (DateTimeOffset.UtcNow - _lastHeartbeat > HeartbeatEvery) await HeartbeatAsync(ct);
     }
+
+    /* ---------------- Branch ---------------- */
+
+    /// <summary>
+    /// Reads the branch from this PC's login (staff/{uid}). If a manager moved the PC to another
+    /// branch, the local members and fingerprints are wiped and the new branch is pulled.
+    /// </summary>
+    public async Task LoadBranchAsync(bool force, CancellationToken ct)
+    {
+        if (_branchId is not null && !force) return;
+        await TokenWarmup(ct);
+        var me = await _fs.GetAsync($"staff/{_fs.Uid}", ct);
+        var branch = me?.Str("branchId");
+        if (string.IsNullOrEmpty(branch))
+            throw new SyncException("Check-in login has no branch. A manager can choose one in Settings.");
+        var saved = _store.GetState(BranchKey);
+        if (saved is not null && saved != branch)
+        {
+            Log.Info("This PC was moved to another branch: clearing the saved member list");
+            _store.ClearMembers();
+        }
+        if (saved != branch) _store.SetState(BranchKey, branch);
+        _branchId = branch;
+    }
+
+    private string Branch => _branchId ?? throw new SyncException("Branch not loaded yet");
 
     /* ---------------- Members ---------------- */
 
@@ -84,7 +116,7 @@ public sealed class SyncService
             var query = new JsonObject
             {
                 ["from"] = new JsonArray(new JsonObject { ["collectionId"] = "members" }),
-                ["where"] = Fs.FieldFilter("updatedAt", "GREATER_THAN", Fs.Time(from)),
+                ["where"] = Fs.And(Fs.FieldFilter("branchId", "EQUAL", Fs.Str(Branch)), Fs.FieldFilter("updatedAt", "GREATER_THAN", Fs.Time(from))),
                 ["orderBy"] = new JsonArray(new JsonObject { ["field"] = new JsonObject { ["fieldPath"] = "updatedAt" }, ["direction"] = "ASCENDING" }),
                 ["limit"] = 300,
             };
@@ -147,6 +179,7 @@ public sealed class SyncService
             var fields = new JsonObject
             {
                 ["deviceId"] = Fs.Str(_fs.Uid),
+                ["branchId"] = Fs.Str(Branch),
                 ["memberId"] = Fs.Str(log.MemberId),
                 ["memberName"] = Fs.Str(log.MemberName),
                 ["memberNumber"] = log.MemberNumber is { } n ? Fs.Int(n) : Fs.Null(),
@@ -184,6 +217,7 @@ public sealed class SyncService
         var fields = new JsonObject
         {
             ["name"] = Fs.Str(_settings.DeviceName),
+            ["branchId"] = Fs.Str(Branch),
             ["lastSeenAt"] = Fs.Int(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
             ["mode"] = Fs.Str(_settings.Simulation ? "simulation" : "hardware"),
             ["readerConnected"] = Fs.Bool(reader),
@@ -210,7 +244,7 @@ public sealed class SyncService
         var docs = await _fs.RunQueryAsync(new JsonObject
         {
             ["from"] = new JsonArray(new JsonObject { ["collectionId"] = "enrolRequests" }),
-            ["where"] = Fs.FieldFilter("status", "EQUAL", Fs.Str("pending")),
+            ["where"] = Fs.And(Fs.FieldFilter("branchId", "EQUAL", Fs.Str(Branch)), Fs.FieldFilter("status", "EQUAL", Fs.Str("pending"))),
             ["limit"] = 5,
         }, ct);
         foreach (var d in docs)

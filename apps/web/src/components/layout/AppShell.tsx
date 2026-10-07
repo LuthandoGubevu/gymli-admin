@@ -1,4 +1,4 @@
-import { ChevronDown, House, LogOut, Plus, ScrollText, Search, Settings, Users, type LucideIcon } from 'lucide-react'
+import { Building2, Check, ChevronDown, House, LogOut, Plus, ScrollText, Search, Settings, Users, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { logOut, useGym, useNow, useStaff } from '../../data/store'
@@ -84,6 +84,62 @@ export function TurnstileChip({ compact }: { compact?: boolean }) {
   )
 }
 
+/** Which branch the screens show. Managers switch; front desk sees their own branch only. */
+export function BranchSwitcher() {
+  const staff = useStaff()
+  const { branches, branch, setBranch } = useGym()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+  if (!branch) return null
+  const chip = 'flex h-44 max-w-220 items-center gap-8 rounded-full border border-glass-edge bg-glass px-16 text-13 font-semibold text-ink'
+  if (staff.role !== 'manager' || branches.data.length < 2)
+    return (
+      <div className={chip} title="Branch">
+        <Building2 size={16} className="shrink-0" />
+        <span className="truncate">{branch.name}</span>
+      </div>
+    )
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Branch: ${branch.name}`} className={cx(chip, 'hover:bg-white')}>
+        <Building2 size={16} className="shrink-0" />
+        <span className="truncate">{branch.name}</span>
+        <ChevronDown size={16} className="shrink-0 text-muted" />
+      </button>
+      {open && (
+        <div className="absolute top-52 left-0 z-40 w-220 rounded-tile bg-white p-8 shadow-modal">
+          <div className="px-12 py-8 text-13 text-muted">Show branch</div>
+          {branches.data.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => {
+                setBranch(b.id)
+                setOpen(false)
+              }}
+              className="flex h-44 w-full items-center gap-10 rounded-row px-12 text-left text-14 font-semibold hover:bg-field"
+            >
+              <span className="min-w-0 flex-1 truncate">{b.name}</span>
+              {b.id === branch.id && <Check size={16} className="text-green-deep" />}
+            </button>
+          ))}
+          <Link to="/settings" onClick={() => setOpen(false)} className="flex h-44 items-center gap-10 rounded-row px-12 text-14 font-medium text-muted hover:bg-field">
+            <Plus size={16} /> Manage branches
+          </Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UserMenu() {
   const staff = useStaff()
   const [open, setOpen] = useState(false)
@@ -149,6 +205,7 @@ function TopNav() {
           </NavLink>
         ))}
       </nav>
+      <BranchSwitcher />
       <div className="flex-1" />
       <TurnstileChip compact />
       <button

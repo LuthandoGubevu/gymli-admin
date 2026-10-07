@@ -13,7 +13,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { initializeApp } from 'firebase/app'
 import { connectAuthEmulator, getAuth, signInWithEmailAndPassword } from 'firebase/auth'
-import { collection, connectFirestoreEmulator, doc, getDocs, getFirestore, setDoc } from 'firebase/firestore'
+import { collection, connectFirestoreEmulator, doc, getDocs, getFirestore, query, setDoc, where } from 'firebase/firestore'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const DESIGN = resolve(here, '../../../../design/gymli-design.html')
@@ -62,10 +62,10 @@ async function heartbeat(): Promise<() => void> {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
   connectFirestoreEmulator(db, '127.0.0.1', 8080)
   const { user } = await signInWithEmailAndPassword(auth, 'turnstile1@gymli.local', 'gymli-demo-2026')
-  const beat = () => setDoc(doc(db, 'devices', user.uid), { name: 'Turnstile 1', lastSeenAt: Date.now(), mode: 'simulation', readerConnected: true, relayConnected: true, pendingLogs: 0, appVersion: 'visual' })
+  const beat = () => setDoc(doc(db, 'devices', user.uid), { name: 'Turnstile 1', branchId: 'sandton', lastSeenAt: Date.now(), mode: 'simulation', readerConnected: true, relayConnected: true, pendingLogs: 0, appVersion: 'visual' })
   await beat()
   const t = setInterval(beat, 5_000)
-  const members = await getDocs(collection(db, 'members'))
+  const members = await getDocs(query(collection(db, 'members'), where('branchId', '==', 'sandton')))
   const ids: Record<string, string> = {}
   for (const m of members.docs) ids[String(m.data().firstName).toLowerCase()] = m.id
   ;(globalThis as Record<string, unknown>).__ids = ids

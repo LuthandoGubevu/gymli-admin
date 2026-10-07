@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { BranchGate } from './components/BranchGate'
 import { AppShell } from './components/layout/AppShell'
 import { MemberFormModal } from './components/member/MemberFormModal'
 import { Spinner } from './components/ui'
@@ -33,16 +34,18 @@ function Gate() {
   return (
     <GymDataProvider>
       <AppShell>
-        <Routes>
-          <Route path="/" element={<TodayPage />} />
-          <Route path="/members" element={<MembersPage />} />
-          <Route path="/members/new" element={<AddMemberRoute />} />
-          <Route path="/members/:id" element={<MemberProfilePage />} />
-          <Route path="/door-log" element={<DoorLogPage />} />
-          <Route path="/check-in" element={<Navigate to="/" replace />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <BranchGate>
+          <Routes>
+            <Route path="/" element={<TodayPage />} />
+            <Route path="/members" element={<MembersPage />} />
+            <Route path="/members/new" element={<AddMemberRoute />} />
+            <Route path="/members/:id" element={<MemberProfilePage />} />
+            <Route path="/door-log" element={<DoorLogPage />} />
+            <Route path="/check-in" element={<Navigate to="/" replace />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BranchGate>
       </AppShell>
     </GymDataProvider>
   )

@@ -44,11 +44,24 @@ npm run bootstrap -- "Grace Venter" grace@yourgym.co.za 'a-strong-password'
 ```
 Works once. Grace then signs in and adds staff in **Settings → Staff logins**.
 
-## 4. Check-in login
+## 4. Branches
 
-Signed in as a manager: **Settings → Check-in PCs → Add check-in login**. Copy the email and password shown (shown once).
+The first time a manager signs in they are asked to **name the first branch**. Everything already in
+Gymli (members, front desk and check-in logins) goes into it. More branches: **Settings → Branches → Add branch**,
+or the branch menu in the header. Managers switch branches from that menu; front desk only ever sees
+the branch they were put in.
 
-## 5. Reception PC
+After pulling a version with branches, redeploy the rules **and indexes** before using the new web app:
+```bash
+firebase deploy --only firestore
+```
+
+## 5. Check-in login
+
+Signed in as a manager, with the right branch chosen in the header: **Settings → Check-in PCs → Add check-in login**
+and pick the branch. Copy the email and password shown (shown once). The PC only lets in members of that branch.
+
+## 6. Reception PC
 
 Build (any computer with the .NET 8 SDK):
 ```bash

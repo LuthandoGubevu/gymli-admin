@@ -90,6 +90,17 @@ public sealed class LocalStore : IDisposable
         }
     }
 
+    /// <summary>Forgets every member and template (this PC was moved to another branch).</summary>
+    public void ClearMembers()
+    {
+        lock (_gate)
+        {
+            Exec("DELETE FROM members; DELETE FROM templates; DELETE FROM state WHERE key='members.cursor';");
+            _members.Clear();
+            LoadTemplatesLocked();
+        }
+    }
+
     /* ---------------- Templates ---------------- */
 
     public IReadOnlyList<StoredTemplate> Templates { get { lock (_gate) return _templates; } }

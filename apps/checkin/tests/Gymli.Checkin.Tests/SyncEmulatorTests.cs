@@ -44,7 +44,9 @@ public sealed class SyncEmulatorTests : IDisposable
         var sync = new SyncService(fs, store, _settings, () => (true, true));
 
         await sync.SyncOnceAsync(default);
+        Assert.Equal("sandton", sync.BranchId);
         Assert.True(store.MemberCount >= 30, $"members: {store.MemberCount}");
+        Assert.DoesNotContain(store.Members, m => m.Number > 1030); // Soweto's members stay off this PC
         var thabo = store.Members.Single(m => m.Number == 1007);
         Assert.True(thabo.FingerprintEnrolled);
 
@@ -70,6 +72,32 @@ public sealed class SyncEmulatorTests : IDisposable
         Assert.True(store.GetMember(ntombi.Id)!.FingerprintEnrolled);
         Assert.True(store.HasTemplate(ntombi.Id));
 
+        await sync.HeartbeatAsync(default);
+    }
+
+    [SkippableFact]
+    public async Task OtherBranch_OnlyGetsItsOwnMembers_AndTurnsAwayOthers()
+    {
+        Skip.IfNot(EmulatorUp(), "Firebase emulator not running");
+        var soweto = new CheckinSettings
+        {
+            Mode = "simulation", FirebaseApiKey = "demo-key", FirebaseProjectId = "demo-gymli", FirebaseDatabaseId = "(default)",
+            EmulatorHost = "127.0.0.1", DeviceEmail = "turnstile2@gymli.local", DevicePassword = "gymli-demo-2026", RelayPulseMs = 1,
+        };
+        using var fs = new FirestoreClient(soweto);
+        using var store = new LocalStore(Path.Combine(_dir, "s.db"), new TemplateProtector(RandomNumberGenerator.GetBytes(32)));
+        var sync = new SyncService(fs, store, soweto, () => (true, true));
+        await sync.SyncOnceAsync(default);
+        Assert.Equal("soweto", sync.BranchId);
+        Assert.Equal(5, store.MemberCount);
+        Assert.All(store.Members, m => Assert.True(m.Number > 1030));
+
+        // A Sandton member's finger is not on this PC: turned away as not recognised
+        var engine = new CheckinEngine(new SimulatedReader(), new SimulatedRelay(), store, new SystemClock(() => 0), soweto, () => true) { Sync = sync };
+        var o = await engine.ProcessAsync(new(Encoding.UTF8.GetBytes("SIM:someone-from-sandton")), default);
+        Assert.False(o.Log.Allowed);
+        await sync.PushDoorLogsAsync(default);
+        Assert.Equal(0, store.PendingCount);
         await sync.HeartbeatAsync(default);
     }
 
