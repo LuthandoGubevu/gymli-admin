@@ -57,17 +57,17 @@ export function TodayPage() {
 
       {members.error && <ErrorNote>{members.error}</ErrorNote>}
 
-      <div className="grid grid-cols-5 gap-16 max-xl:grid-cols-3 max-md:grid-cols-2 max-md:gap-10">
+      <div className="grid grid-cols-5 gap-16 max-lg:gap-10 max-md:grid-cols-2">
         {stats.map((s) => (
-          <Link key={s.label} to={s.to} className="glass-card flex flex-col gap-6 px-22 pt-22 pb-24 transition-transform hover:-translate-y-1 max-md:px-16 max-md:pt-16 max-md:pb-18">
+          <Link key={s.label} to={s.to} className="glass-card flex min-w-0 flex-col gap-6 px-22 pt-20 pb-22 transition-transform hover:-translate-y-1 max-lg:px-16 max-lg:pt-16 max-lg:pb-18">
             <div className="flex items-center gap-8">
               <Dot tone={s.dot} />
-              <span className="flex-1 text-14 font-medium text-ink-3 max-md:text-13">{s.label}</span>
-              <span className="flex size-34 items-center justify-center rounded-full border border-line-8 max-md:hidden">
+              <span className="flex-1 text-14 font-medium text-ink-3 max-lg:text-13">{s.label}</span>
+              <span className="flex size-34 items-center justify-center rounded-full border border-line-8 max-lg:hidden">
                 <ArrowUpRight size={15} />
               </span>
             </div>
-            <div className="text-84 leading-95 font-extrabold tracking-tighter stretch-66 tabular max-md:text-56" data-testid={`stat-${s.label}`}>
+            <div className="text-64 leading-95 font-extrabold tracking-tighter stretch-66 tabular max-lg:text-48" data-testid={`stat-${s.label}`}>
               {loading ? '–' : s.value}
             </div>
             <div className="text-13 text-muted">{loading ? ' ' : s.sub}</div>
@@ -91,11 +91,18 @@ export function TodayPage() {
         ) : ending.length === 0 ? (
           <EmptyState title="No one ends this week">Everyone who can enter has more than a week left.</EmptyState>
         ) : (
-          <div className="grid grid-cols-6 gap-14 max-xl:grid-cols-3 max-md:grid-cols-2 max-md:gap-10">
-            {ending.slice(0, 6).map((v) => (
-              <EndingCard key={v.member.id} view={v} onPay={() => setPayFor(v.member)} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-x-32 max-lg:grid-cols-1">
+              {ending.slice(0, 8).map((v, i) => (
+                <EndingRow key={v.member.id} view={v} onPay={() => setPayFor(v.member)} className={i >= 4 ? 'max-md:hidden' : undefined} />
+              ))}
+            </div>
+            {ending.length > 4 && (
+              <Link to="/members?filter=ending" className={cx('block border-t border-line-6 pt-14 text-14 font-semibold underline', ending.length <= 8 && 'md:hidden')}>
+                See all {ending.length}
+              </Link>
+            )}
+          </>
         )}
       </Card>
 
@@ -174,23 +181,21 @@ export function TodayPage() {
   )
 }
 
-function EndingCard({ view, onPay }: { view: MemberView; onPay: () => void }) {
+function EndingRow({ view, onPay, className }: { view: MemberView; onPay: () => void; className?: string }) {
   const { member, info } = view
   const urgent = info.daysLeft! <= URGENT_DAYS
+  const left = info.daysLeft === 0 ? 'Last day' : info.daysLeft === 1 ? '1 day left' : `${info.daysLeft} days left`
+  const pill = cx('rounded-full px-12 py-6 text-13 font-bold whitespace-nowrap tabular max-md:px-10 max-md:py-3 max-md:text-12', urgent ? 'bg-yellow text-ink' : 'bg-chip text-ink-2')
   return (
-    <div className={cx('flex min-h-262 flex-col rounded-tile border p-16', urgent ? 'border-yellow bg-yellow' : 'border-line-6 bg-white')} data-testid="ending-card">
-      <div className="flex items-center justify-between">
-        <Avatar text={initials(memberName(member))} tone={urgent ? 'onYellow' : 'neutral'} />
-        <IconButton icon={ArrowUpRight} label={`Open ${memberName(member)}`} size={34} iconSize={15} to={`/members/${member.id}`} className="border-line-14" />
-      </div>
-      <div className="mt-16 text-17 leading-120 font-bold">{memberName(member)}</div>
-      <div className={cx('mt-3 text-13', urgent ? 'text-yellow-ink' : 'text-muted')}>Paid until {formatDayMonth(info.paidUntil!)}</div>
-      <div className="flex-1" />
-      <div className="mt-10 mb-14 flex items-baseline gap-8">
-        <div className="text-72 leading-85 font-extrabold stretch-66 tabular">{info.daysLeft}</div>
-        <div className="text-14 leading-115 font-semibold">{info.daysLeft === 0 ? 'days left · last day' : info.daysLeft === 1 ? 'day left' : 'days left'}</div>
-      </div>
-      <Button variant={urgent ? 'primary' : 'outline'} className={cx('border-thick', !urgent && 'bg-transparent')} onClick={onPay}>
+    <div className={cx('flex items-center gap-14 border-t border-line-6 py-12', className)} data-testid="ending-row">
+      <Avatar text={initials(memberName(member))} tone={urgent ? 'yellow' : 'neutral'} />
+      <Link to={`/members/${member.id}`} className="min-w-0 flex-1">
+        <div className="truncate text-16 font-semibold">{memberName(member)}</div>
+        <div className="mt-2 text-13 text-muted tabular">Paid until {formatDayMonth(info.paidUntil!)}</div>
+        <span className={cx(pill, 'mt-6 inline-block md:hidden')}>{left}</span>
+      </Link>
+      <span className={cx(pill, 'shrink-0 max-md:hidden')}>{left}</span>
+      <Button size="sm" variant={urgent ? 'primary' : 'outline'} onClick={onPay}>
         Log payment
       </Button>
     </div>

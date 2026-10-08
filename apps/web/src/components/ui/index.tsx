@@ -177,7 +177,7 @@ export function Dot({ tone, size = 10 }: { tone: 'green' | 'green-mark' | 'yello
 /* ---------------- Avatar ---------------- */
 
 type AvatarSize = 34 | 40 | 42 | 44 | 48 | 72 | 96
-type AvatarTone = 'neutral' | 'ink' | 'red' | 'onYellow' | 'inkGreen' | 'inkRed'
+type AvatarTone = 'neutral' | 'ink' | 'red' | 'yellow' | 'onYellow' | 'inkGreen' | 'inkRed'
 
 const avatarSize: Record<AvatarSize, string> = {
   34: 'size-34 text-14 font-bold',
@@ -192,6 +192,7 @@ const avatarTone: Record<AvatarTone, string> = {
   neutral: 'bg-chip text-ink',
   ink: 'bg-ink text-white',
   red: 'bg-red-soft text-red-deep',
+  yellow: 'bg-yellow text-ink',
   onYellow: 'bg-line-10 text-ink',
   inkGreen: 'bg-ink text-green',
   inkRed: 'bg-ink text-red',
@@ -212,7 +213,7 @@ export function PageHeader({ eyebrow, title, actions }: { eyebrow?: ReactNode; t
     <header className="mt-12 flex flex-wrap items-end justify-between gap-24 max-md:mt-0 max-md:gap-16">
       <div className="min-w-0">
         {eyebrow && <div className="text-14 font-medium text-muted">{eyebrow}</div>}
-        <h1 className="m-0 mt-10 text-96 leading-88 font-extrabold tracking-tighter stretch-66 max-md:text-56">{title}</h1>
+        <h1 className="m-0 mt-10 text-72 leading-88 font-extrabold tracking-tighter stretch-66 max-md:text-44">{title}</h1>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-10">{actions}</div>}
     </header>
