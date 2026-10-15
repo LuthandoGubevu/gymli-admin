@@ -51,10 +51,16 @@ public sealed class SerialRelay : ITurnstileRelay
         }
     }
 
-    private void Write(bool on)
+    /// <summary>The 4-byte LCUS command that switches one channel on or off.</summary>
+    public static byte[] Frame(byte channel, bool on)
     {
         var state = (byte)(on ? 1 : 0);
-        var frame = new byte[] { 0xA0, _channel, state, (byte)(0xA0 + _channel + state) };
+        return [0xA0, channel, state, (byte)(0xA0 + channel + state)];
+    }
+
+    private void Write(bool on)
+    {
+        var frame = Frame(_channel, on);
         _port!.Write(frame, 0, frame.Length);
     }
 

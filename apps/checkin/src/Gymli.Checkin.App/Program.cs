@@ -12,6 +12,7 @@ namespace Gymli.Checkin.App;
 ///   Gymli.Checkin.exe --import-key KEY    use a backed-up key on a new PC
 ///   Gymli.Checkin.exe --screenshots DIR   render the kiosk screens to PNG (visual check)
 ///   Gymli.Checkin.exe --agent             no window; simulated scans from stdin (end-to-end tests)
+///   Gymli.Checkin.exe --hardware-test     on-site check of the reader and the gate relay (report on the desktop)
 /// </summary>
 public static class Program
 {
@@ -35,6 +36,10 @@ public static class Program
             TemplateProtector.LoadOrCreate(settings.DataFolder, args[1]);
             Console.WriteLine("Key imported.");
             return 0;
+        }
+        if (args.Length > 0 && args[0] == "--hardware-test")
+        {
+            return HardwareTest.Run(settings);
         }
         if (args.Length > 0 && args[0] == "--agent")
         {

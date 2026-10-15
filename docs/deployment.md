@@ -69,11 +69,12 @@ apps/checkin/scripts/publish.sh      # → apps/checkin/dist/GymliCheckin
 ```
 On the reception PC (Windows 10/11, its own local user that signs in automatically):
 1. Install the **HID DigitalPersona U.are.U runtime/SDK** (gives `dpfpdd.dll`, `dpfj.dll`) and plug in the 4500 reader.
-2. Plug in the USB relay (CH340 "LCUS" type). Note its COM port in Device Manager.
+2. Plug in the USB relay: a CH340 "LCUS" serial board (note its COM port in Device Manager) or a HID "USBRelay" board (no driver, found automatically).
+   Run **Hardware test.bat** to check the reader, find the relay and send a test pulse (see [hardware-test.md](hardware-test.md)).
 3. Copy `GymliCheckin` to the PC, open PowerShell **as Administrator** in that folder: `./install.ps1`
 4. Edit `C:\ProgramData\Gymli\appsettings.json`:
    ```json
-   { "Mode": "hardware", "DeviceEmail": "turnstile1@…", "DevicePassword": "…", "RelayPort": "COM3", "RelayPulseMs": 500 }
+   { "Mode": "hardware", "DeviceEmail": "turnstile1@…", "DevicePassword": "…", "RelayType": "auto", "RelayPort": "COM3", "RelayPulseMs": 500 }
    ```
 5. **Back up the fingerprint key** (needed to move to a new PC without re-enrolling everyone):
    `"C:\Program Files\Gymli\Checkin\Gymli.Checkin.exe" --export-key` → store in the manager's password manager.

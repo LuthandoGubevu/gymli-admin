@@ -30,6 +30,12 @@ public sealed class CheckinSettings
     public int RelayPulseMs { get; set; } = 500;
     public int ResultSeconds { get; set; } = 4;
 
+    /// <summary>
+    /// Which USB relay board drives the turnstile: "auto" (default: a HID "USBRelay" board if one is
+    /// plugged in, otherwise a CH340 serial board), "hid" or "serial".
+    /// </summary>
+    public string RelayType { get; set; } = "auto";
+
     /// <summary>Serial port of the USB relay board, e.g. "COM3". Empty = first CH340 port found.</summary>
     public string RelayPort { get; set; } = "";
     /// <summary>Relay channel (1-based) for multi-channel boards.</summary>

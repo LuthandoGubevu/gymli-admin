@@ -43,7 +43,7 @@ public sealed class KioskHost : IDisposable
         else
         {
             Reader = new DigitalPersonaReader();
-            Relay = new SerialRelay(settings.RelayPort, settings.RelayChannel);
+            Relay = RelayFactory.Create(settings);
         }
 
         _fs = new FirestoreClient(settings);

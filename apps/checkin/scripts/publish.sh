@@ -6,4 +6,5 @@ cd "$(dirname "$0")/.."
 rm -rf dist/GymliCheckin
 dotnet publish src/Gymli.Checkin.App -c Release -r win-x64 --self-contained true -o dist/GymliCheckin
 cp scripts/install.ps1 dist/GymliCheckin/
+cp scripts/hardware-test.bat "dist/GymliCheckin/Hardware test.bat"
 echo "Built dist/GymliCheckin — copy it to the reception PC and run install.ps1 as Administrator."
