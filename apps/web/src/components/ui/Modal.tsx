@@ -19,13 +19,20 @@ interface ModalProps {
 /** Design 04 / 06: white sheet, 36px radius, blurred dark backdrop. */
 export function Modal({ open, onClose, eyebrow, title, subtitle, children, width = 'lg', locked }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null)
+  // Latest handlers in refs: pages pass a new onClose on every render (live data), and the effect
+  // below must run only when the modal opens, or focus would jump back to the first field.
+  const closeRef = useRef(onClose)
+  const lockedRef = useRef(locked)
+  closeRef.current = onClose
+  lockedRef.current = locked
 
   useEffect(() => {
     if (!open) return
     const prev = document.activeElement as HTMLElement | null
-    panel.current?.querySelector<HTMLElement>('[data-autofocus], input, button:not([aria-label="Close"])')?.focus()
+    const first = panel.current?.querySelector<HTMLElement>('[data-autofocus]') ?? panel.current?.querySelector<HTMLElement>('input, button:not([aria-label="Close"])')
+    first?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !locked) onClose()
+      if (e.key === 'Escape' && !lockedRef.current) closeRef.current()
     }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -34,7 +41,7 @@ export function Modal({ open, onClose, eyebrow, title, subtitle, children, width
       document.body.style.overflow = ''
       prev?.focus?.()
     }
-  }, [open, locked, onClose])
+  }, [open])
 
   if (!open) return null
   return createPortal(
