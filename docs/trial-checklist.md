@@ -15,7 +15,8 @@
 - [ ] USB relay plugged in; COM port noted
 - [ ] `install.ps1` run; `appsettings.json`: `"Mode": "hardware"`, check-in email/password, `RelayPort`
 - [ ] `--export-key` done and key stored by the manager
-- [ ] Restart → Gymli Check-in starts minimised in the taskbar; open it, pill says **Online · synced**
+- [ ] Restart → Gymli Check-in icon appears next to the clock (no window); click it, pill says **Online · synced**
+- [ ] Close it with Ctrl+Shift+Q → it is back within 5 seconds (watchdog)
 
 **Turnstile**
 - [ ] Power off; relay COM/NO → controller entry input; power on

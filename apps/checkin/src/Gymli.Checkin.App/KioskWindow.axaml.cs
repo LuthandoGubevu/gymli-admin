@@ -1,3 +1,4 @@
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -50,16 +51,16 @@ public partial class KioskWindow : Window
         }
         else
         {
-            // Background: members only scan their finger. The window stays minimised on the
-            // reception PC; staff can open it from the taskbar to see its status.
+            // Background: members only scan their finger. No window or taskbar button: Gymli runs
+            // behind the icon next to the clock, where staff can open this status window.
             Title = $"Body Tone Gym · Check-in · {host.Settings.DeviceName}";
-            WindowState = WindowState.Minimized;
-            // The X button minimises, so the turnstile keeps working. Ctrl+Shift+Q quits.
+            ShowInTaskbar = false;
+            // Closing the status window only hides it, so the turnstile keeps working. Ctrl+Shift+Q quits.
             Closing += (_, e) =>
             {
                 if (_quitting || e.CloseReason != WindowCloseReason.WindowClosing) return;
                 e.Cancel = true;
-                WindowState = WindowState.Minimized;
+                Hide();
             };
         }
         KeyDown += OnKey;
@@ -73,7 +74,8 @@ public partial class KioskWindow : Window
         if (e.Key == Key.Q && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
             _quitting = true;
-            Close();
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) desktop.Shutdown();
+            else Close();
         }
         if (e.Key == Key.F2 && _host?.Settings.Simulation == true) SimPanel.IsVisible = !SimPanel.IsVisible;
         if (e.Key == Key.F11) WindowState = WindowState == WindowState.FullScreen ? WindowState.Normal : WindowState.FullScreen;

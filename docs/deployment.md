@@ -79,7 +79,7 @@ On the reception PC (Windows 10/11, its own local user that signs in automatical
 5. **Back up the fingerprint key** (needed to move to a new PC without re-enrolling everyone):
    `"C:\Program Files\Gymli\Checkin\Gymli.Checkin.exe" --export-key` → store in the manager's password manager.
    On a replacement PC: `Gymli.Checkin.exe --import-key <key>` before first start.
-6. Restart. Gymli Check-in starts minimised in the taskbar (the X button only minimises it). **Ctrl+Shift+Q** closes it (staff). Logs: `C:\ProgramData\Gymli\logs`.
+6. Restart. Gymli Check-in runs **hidden**: no window and no taskbar button, only an icon next to the clock (hover for online / scanner / gate status, click to open the status window; closing that window only hides it). A watchdog starts it again within 5 seconds if it is ever closed or crashes, so staff cannot switch the scanner off by accident. For maintenance, disable the **Gymli Check-in watchdog** task in Task Scheduler first, then **Ctrl+Shift+Q** in the status window. Logs: `C:\ProgramData\Gymli\logs`.
 
 Updating: run `publish.sh`, copy the folder, run `install.ps1` again (settings, data and key are kept).
 

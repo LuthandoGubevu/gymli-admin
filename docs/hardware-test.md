@@ -37,14 +37,15 @@ box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app dr
    `"Mode": "hardware"`, `"DeviceEmail"` / `"DevicePassword"` from the check-in login,
    and the relay line the hardware test printed (for example `"RelayType": "hid"`).
    Do **not** run `install.ps1` (that makes it start with Windows).
-2. Double-click **Gymli.Checkin.exe**. It starts in the taskbar.
+2. Double-click **Gymli.Checkin.exe**. It runs hidden: its icon appears next to the clock (hover for status, click to open).
 3. Web app → Settings → Check-in PCs: **online**, reader ✓, relay ✓.
 4. Add a test member (yourself) → **Enrol fingerprint** (4 scans at the reader) → **Log payment** (day pass).
 5. Scan → the gate opens once. Scan a finger that is not enrolled → the gate stays locked.
 6. Web app → **Door log**: both scans are there, "Let in" and "Fingerprint not recognised".
 
 ## D. Put everything back
-- [ ] Close Gymli: open it from the taskbar and press **Ctrl+Shift+Q**.
+- [ ] Close Gymli: click its icon next to the clock, then press **Ctrl+Shift+Q** in the window that opens.
+      (No watchdog runs in this test, because `install.ps1` was not used, so it stays closed.)
 - [ ] Start Itensity's app again (or restart the PC) and check that a member can still get in.
 - [ ] Optional: remove the test member (manager) — this deletes the test fingerprint.
 

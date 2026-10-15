@@ -4,7 +4,8 @@
   What it does:
    1. Copies the app to C:\Program Files\Gymli\Checkin
    2. Creates C:\ProgramData\Gymli\appsettings.json (keeps an existing one)
-   3. Starts the kiosk at logon and restarts it if it ever stops (Task Scheduler)
+   3. Starts Gymli Check-in at logon, hidden (icon next to the clock), and a watchdog that
+      starts it again within 5 seconds if it is ever closed or crashes (Task Scheduler)
    4. Stops Windows from sleeping or turning the screen off
 
   Then: edit C:\ProgramData\Gymli\appsettings.json (DeviceEmail, DevicePassword, Mode) and restart the PC.
@@ -16,6 +17,7 @@ $dest = 'C:\Program Files\Gymli\Checkin'
 $data = 'C:\ProgramData\Gymli'
 
 Write-Host 'Stopping any running kiosk...'
+Stop-ScheduledTask -TaskName 'Gymli Check-in watchdog' -ErrorAction SilentlyContinue
 Get-Process -Name 'Gymli.Checkin' -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 1
 
@@ -44,10 +46,13 @@ $settingsTask = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopI
 $principal = New-ScheduledTaskPrincipal -GroupId 'BUILTIN\Users' -RunLevel Limited
 Register-ScheduledTask -TaskName 'Gymli Check-in' -Action $action -Trigger $trigger -Settings $settingsTask -Principal $principal -Force | Out-Null
 
-# Watchdog: every minute, start the kiosk again if it is not running (covers crashes the task does not see)
-$watch = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -Command `"if (-not (Get-Process 'Gymli.Checkin' -ErrorAction SilentlyContinue)) { Start-Process '$exe' -WorkingDirectory '$dest' }`""
-$every = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName 'Gymli Check-in watchdog' -Action $watch -Trigger $every -Principal $principal -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries) -Force | Out-Null
+# Watchdog: a hidden loop that starts Gymli again within 5 seconds if it stops (closed or crashed).
+# Also checked every 5 minutes, in case the watchdog itself was stopped (a second copy is never started).
+$watch = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$(Join-Path $dest 'watchdog.ps1')`"" -WorkingDirectory $dest
+$watchTriggers = @((New-ScheduledTaskTrigger -AtLogOn), (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)))
+$watchSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
+Register-ScheduledTask -TaskName 'Gymli Check-in watchdog' -Action $watch -Trigger $watchTriggers -Principal $principal -Settings $watchSettings -Force | Out-Null
+Start-ScheduledTask -TaskName 'Gymli Check-in watchdog'
 
 Write-Host 'Keeping the PC awake...'
 powercfg /change standby-timeout-ac 0
@@ -58,4 +63,5 @@ Write-Host ''
 Write-Host 'Done. Next:'
 Write-Host "  1. Edit $settings (Mode, DeviceEmail, DevicePassword, RelayPort)"
 Write-Host "  2. Back up the fingerprint key:  & '$exe' --export-key   (store it in the manager's password manager)"
-Write-Host '  3. Restart the PC. The kiosk opens full screen. Ctrl+Shift+Q closes it.'
+Write-Host '  3. Restart the PC. Gymli runs hidden: hover the icon next to the clock for its status, click it to open.'
+Write-Host '     Maintenance: disable the "Gymli Check-in watchdog" task first, otherwise Gymli restarts within 5 seconds.'
