@@ -1,19 +1,30 @@
 # On-site hardware test (existing reader and gate)
 
 Goal: prove Gymli works with the gym's **own** fingerprint reader and gate box, without changing any
-wiring and without disturbing the current system (Itensity). Everything here can be undone by
-closing Gymli and starting Itensity again. About 1 hour; do it at a quiet time.
+wiring and without touching the gym's PC: the reader and the gate box are moved to a laptop running
+Gymli for about an hour, then plugged back. Do it at a quiet time.
 
 What we know: HID DigitalPersona reader on the counter (USB to the reception PC); a black gate
 box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app drives both today.
 
-## Before the day
-- [ ] Copy the **GymliCheckin** folder (from `GymliCheckin-win-x64.zip`) onto a USB stick.
+## Before the day (on your laptop, at home)
+- [ ] Laptop: Windows 10 or 11, 64-bit, charged, with internet on site (gym Wi-Fi or a phone hotspot).
+- [ ] Put the **GymliCheckin** folder (from `GymliCheckin-win-x64.zip`) on the laptop's desktop.
+- [ ] Double-click **Hardware test.bat** once, with nothing plugged in. It must open and finish; look at step 2:
+      - `dpfpdd.dll` / `dpfj.dll` **found** → the reader test will run on Sunday.
+      - **not found** → the laptop needs HID's DigitalPersona U.are.U runtime (it comes with HID's licensed
+        U.are.U SDK). Without it, Sunday tests the **gate only**; the reader is tested once the runtime is in.
 - [ ] Web app, signed in as manager, correct branch chosen: **Settings → Check-in PCs → Add check-in login**.
       Write down the email and password (shown once).
-- [ ] Agree with the gym that Itensity's app may be closed for up to an hour, and how to start it again.
-- [ ] Optional backup: a Windows 10/11 laptop. Moving the reader's and gate box's USB plugs to the laptop
-      leaves the gym PC untouched (the laptop needs the DigitalPersona runtime, see below).
+- [ ] Agree a quiet time with the gym: while the two USB plugs are in your laptop, Itensity cannot open the gate,
+      so staff let members through by hand for that hour.
+
+## On site: move the two USB plugs to the laptop
+- [ ] Note which USB ports on the gym PC the **reader** and the **gate box** use (photo).
+- [ ] Put the laptop next to the gym PC (the cables are only long enough to reach there).
+- [ ] Unplug both from the gym PC and plug them into the laptop. Leave the gym PC and Itensity as they are.
+- [ ] Wait a minute for Windows to set up the devices (the gate box may need its USB driver from Windows Update;
+      the hardware test lists it either way).
 
 ## A. Photos and facts (10 min)
 - [ ] Gate box: close-ups of every side, any sticker, model name, text next to the green terminals.
@@ -21,8 +32,8 @@ box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app dr
 - [ ] Windows version: Settings → System → About (edition, version, 64-bit).
 
 ## B. Hardware test (20 min) — nothing is saved or sent
-1. Close Itensity's app completely (also its icon next to the clock; check Task Manager).
-2. Copy the GymliCheckin folder to the desktop. Double-click **Hardware test.bat**.
+1. On the laptop, double-click **Hardware test.bat** in the GymliCheckin folder.
+2. (Nothing to close: Itensity stays on the gym PC.)
    If Windows says "Windows protected your PC": **More info → Run anyway**.
 3. Follow the questions on screen:
    - **Fingerprint software**: are `dpfpdd.dll` and `dpfj.dll` on the PC?
@@ -46,7 +57,8 @@ box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app dr
 ## D. Put everything back
 - [ ] Close Gymli: click its icon next to the clock, then press **Ctrl+Shift+Q** in the window that opens.
       (No watchdog runs in this test, because `install.ps1` was not used, so it stays closed.)
-- [ ] Start Itensity's app again (or restart the PC) and check that a member can still get in.
+- [ ] Plug the reader and the gate box back into the **same USB ports** on the gym PC.
+- [ ] If Itensity does not find them, restart Itensity's app (or the gym PC). Check that a member can get in.
 - [ ] Optional: remove the test member (manager) — this deletes the test fingerprint.
 
 ## What the results mean
