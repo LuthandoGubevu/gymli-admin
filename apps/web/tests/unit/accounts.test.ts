@@ -117,3 +117,12 @@ describe('busiest hours', () => {
     expect(grid[6][17]).toBe(1)
   })
 })
+
+describe('imported access', () => {
+  it('is not a payment, but a later payment still counts as a renewal', () => {
+    const m = member('m9', 'b1', [pay('imp', '2026-10-01', { kind: 'days', imported: true, amountCents: undefined, method: undefined }), pay('real', '2026-10-20')])
+    const rows = paymentRows([m])
+    expect(rows.map((r) => r.id)).toEqual(['real'])
+    expect(rows[0].isNew).toBe(false)
+  })
+})

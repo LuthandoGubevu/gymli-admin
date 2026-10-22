@@ -93,6 +93,7 @@ export function parseMemberCsv(text: string, today: LocalDate): ImportRow[] {
     iLast = -1
   }
   const rows: ImportRow[] = []
+  const seen = new Set<string>()
   lines.slice(hasHeader ? 1 : 0).forEach((line, idx) => {
     const cells = splitCsvLine(line, sep)
     const lineNo = idx + (hasHeader ? 2 : 1)
@@ -108,9 +109,12 @@ export function parseMemberCsv(text: string, today: LocalDate): ImportRow[] {
     let error: string | null = null
     if (!names.firstName) error = 'No name'
     else if (!/^0\d{9}$/.test(phone)) error = 'Cellphone is not 10 digits'
+    else if (seen.has(phone)) error = 'Same cellphone as an earlier line'
     else if (untilRaw && !paidUntil) error = `Cannot read date “${untilRaw}”`
+    else if (paidUntil && diffDays(today, paidUntil) >= 366) error = 'Paid until is more than a year away: add this member by hand'
     else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) error = 'Check the email address'
     else if (idCheck && !idCheck.ok) error = `ID number: ${idCheck.error}`
+    if (/^0\d{9}$/.test(phone)) seen.add(phone)
     rows.push({ line: lineNo, firstName: names.firstName, lastName: names.lastName, cellphone: phone, paidUntil, email, idType, idNumber, error })
   })
   return rows

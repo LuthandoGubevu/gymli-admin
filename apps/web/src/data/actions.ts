@@ -100,11 +100,14 @@ export type MemberErrors = Partial<Record<keyof MemberInput, string>>
 export function checkMemberInput(m: MemberInput, today: LocalDate, idRequired: boolean): MemberErrors {
   const errors: MemberErrors = {}
   if (!m.firstName.trim()) errors.firstName = 'Enter a first name'
+  else if (m.firstName.trim().length > 80) errors.firstName = 'Keep the name under 80 characters'
   if (!m.lastName.trim()) errors.lastName = 'Enter a surname'
+  else if (m.lastName.trim().length > 80) errors.lastName = 'Keep the surname under 80 characters'
   const c = cleanCellphone(m.cellphone)
   if (!c) errors.cellphone = 'Enter a cellphone number'
   else if (!/^0\d{9}$/.test(c)) errors.cellphone = 'Use a 10-digit number, like 082 123 4567'
   if (m.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.email.trim())) errors.email = 'Check the email address'
+  else if (m.email.trim().length > 120) errors.email = 'Keep the email under 120 characters'
   if (m.idNumber.trim() || idRequired) {
     if (!m.idNumber.trim()) errors.idNumber = m.idType === 'sa' ? 'Enter the SA ID number' : 'Enter the passport number'
     else {
@@ -116,6 +119,7 @@ export function checkMemberInput(m: MemberInput, today: LocalDate, idRequired: b
   const ec = cleanCellphone(m.emergencyPhone)
   if (m.emergencyPhone.trim() && !/^0\d{9}$/.test(ec)) errors.emergencyPhone = 'Use a 10-digit number'
   if (m.emergencyPhone.trim() && !m.emergencyName.trim()) errors.emergencyName = 'Enter their name'
+  else if (m.emergencyName.trim().length > 80) errors.emergencyName = 'Keep the name under 80 characters'
   if (m.notes.length > 500) errors.notes = 'Keep notes under 500 characters'
   return errors
 }
@@ -192,7 +196,7 @@ export async function updateMember(staff: Staff, memberId: string, input: Member
   if (idNumber && hadId && staff.role !== 'manager') throw new ActionError('Only a manager can change the ID number')
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref)
-    if (!snap.exists()) throw new ActionError('This member no longer exists')
+    if (!snap.exists() || snap.data().deleted) throw new ActionError('This member no longer exists')
     const before = toMember(snap.id, snap.data())
     const after = { firstName: input.firstName.trim(), lastName: input.lastName.trim(), cellphone: cleanCellphone(input.cellphone) }
     const changed = [
@@ -229,7 +233,7 @@ export async function removeMember(staff: Staff, memberId: string): Promise<void
   const ref = doc(db, 'members', memberId)
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref)
-    if (!snap.exists()) return
+    if (!snap.exists() || snap.data().deleted) return // already removed (e.g. by another manager)
     const m = toMember(snap.id, snap.data())
     const auditId = writeAudit(tx, staff, {
       action: 'member.remove',
@@ -261,6 +265,8 @@ export async function removeMember(staff: Staff, memberId: string): Promise<void
 /* ---------------- Payments ---------------- */
 
 export interface PaymentInput {
+  /** CSV import of the previous system's paid-until date: access only, not a payment. */
+  imported?: boolean
   kind: PeriodKind
   qty: number
   start: LocalDate
@@ -306,6 +312,7 @@ export async function logPayment(staff: Staff, memberId: string, input: PaymentI
       loggedAt: Date.now(),
       ...(input.method ? { method: input.method } : {}),
       ...(input.amountCents !== undefined ? { amountCents: input.amountCents } : {}),
+      ...(input.imported ? { imported: true } : {}),
     }
     const auditId = writeAudit(tx, staff, {
       action: 'payment.create',
@@ -327,7 +334,7 @@ export async function editPayment(staff: Staff, memberId: string, periodId: stri
   const ref = doc(db, 'members', memberId)
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref)
-    if (!snap.exists()) throw new ActionError('This member no longer exists')
+    if (!snap.exists() || snap.data().deleted) throw new ActionError('This member no longer exists')
     const m = toMember(snap.id, snap.data())
     const before = m.periods.find((p) => p.id === periodId)
     if (!before || before.deleted) throw new ActionError('This payment no longer exists')
@@ -365,7 +372,7 @@ export async function deletePayment(staff: Staff, memberId: string, periodId: st
   const ref = doc(db, 'members', memberId)
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref)
-    if (!snap.exists()) throw new ActionError('This member no longer exists')
+    if (!snap.exists() || snap.data().deleted) throw new ActionError('This member no longer exists')
     const m = toMember(snap.id, snap.data())
     const before = m.periods.find((p) => p.id === periodId)
     if (!before || before.deleted) return

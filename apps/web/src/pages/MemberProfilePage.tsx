@@ -255,7 +255,7 @@ function AccessCard({ info, today, deniedToday }: { info: StatusInfo; today: Loc
     info.status === 'locked'
       ? `${daysAgoText(diffDays(info.endedOn!, today))}${deniedToday ? ` · denied today ${timeAtGym(deniedToday.at)}` : ''}`
       : info.status === 'future'
-        ? `in ${diffDays(today, info.startsOn!)} days · denied until then`
+        ? `in ${diffDays(today, info.startsOn!) === 1 ? '1 day' : `${diffDays(today, info.startsOn!)} days`} · denied until then`
         : 'Log a payment to open the turnstile'
   return (
     <div className={cx('rounded-card p-28 max-md:p-22', info.status === 'future' ? 'bg-yellow' : 'bg-red')} data-testid="access-card">

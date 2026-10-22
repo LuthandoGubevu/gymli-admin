@@ -458,7 +458,7 @@ function ImportCard() {
         )
         if (r.paidUntil) {
           const p = importedPeriod(r.paidUntil, today)
-          await logPayment(me, id, { kind: 'days', qty: p.days, start: p.start })
+          await logPayment(me, id, { kind: 'days', qty: p.days, start: p.start, imported: true })
         }
       } catch {
         failed++

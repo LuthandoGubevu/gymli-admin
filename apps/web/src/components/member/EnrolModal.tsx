@@ -63,7 +63,8 @@ export function EnrolModal({ member, open, onClose, onLogPayment }: Props) {
     try {
       await requestCapture(requestId)
     } catch (e) {
-      setError(authMessage(e))
+      // The check-in PC may have just ended this enrolment (timed out); the screen updates to "Start again".
+      setError((e as { code?: string })?.code === 'permission-denied' ? 'This enrolment has ended. Press Start again.' : authMessage(e))
     } finally {
       setBusy(false)
     }

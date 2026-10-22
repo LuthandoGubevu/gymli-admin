@@ -49,6 +49,8 @@ export interface Period {
   changedAt?: number
   /** How they paid. Missing on older or imported payments. */
   method?: PaymentMethod
+  /** Brought over from the previous system by CSV import: access only, not a payment (kept out of Accounts). */
+  imported?: boolean
   /** Amount paid in cents (R450 = 45000). Missing on older or imported payments. */
   amountCents?: number
 }
@@ -195,5 +197,6 @@ export function formatCellphone(c: string): string {
   return c
 }
 
-export const DEVICE_ONLINE_MS = 30_000
+/** Heartbeat every 15 s; 60 s leaves room for a few missed beats and a PC clock that is slightly off. */
+export const DEVICE_ONLINE_MS = 60_000
 export const isDeviceOnline = (d: Device | undefined, now: number) => !!d && now - d.lastSeenAt < DEVICE_ONLINE_MS

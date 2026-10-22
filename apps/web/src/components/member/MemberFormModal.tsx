@@ -1,6 +1,6 @@
 import { CalendarDays, Check, IdCard, Mail, Phone, User } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
-import { addMember, authMessage, checkMemberInput, EMPTY_MEMBER_INPUT, updateMember, type MemberErrors, type MemberInput } from '../../data/actions'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { addMember, authMessage, checkMemberInput, cleanCellphone, EMPTY_MEMBER_INPUT, updateMember, type MemberErrors, type MemberInput } from '../../data/actions'
 import { useMemberDetails } from '../../data/details'
 import { useGym, useStaff, useToday } from '../../data/store'
 import { formatFull, isValidDate } from '../../lib/dates'
@@ -36,8 +36,17 @@ export function MemberFormModal({ open, onClose, member, onAdded }: Props) {
   // The ID field is open for a new member, a member with no ID yet, or a manager who chose to change it.
   const idEditable = !member || !hasIdOnFile || changingId
 
+  // Fill the form when it opens, and once more when the member's details arrive — never again
+  // while it is open, or live updates (another desk logging a payment) would wipe what staff typed.
+  const filled = useRef<string | null>(null)
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      filled.current = null
+      return
+    }
+    const key = `${member?.id ?? 'new'}|${detailsLoading ? 'loading' : 'ready'}`
+    if (filled.current === key) return
+    filled.current = key
     setErrors({})
     setError(null)
     setSaving(false)
@@ -61,7 +70,7 @@ export function MemberFormModal({ open, onClose, member, onAdded }: Props) {
     // details arrive a moment after opening; refill once they do
   }, [open, member, details, detailsLoading])
 
-  const digits = form.cellphone.replace(/\D/g, '')
+  const digits = cleanCellphone(form.cellphone)
   const duplicate = digits.length >= 10 && members.data.find((m) => m.id !== member?.id && m.cellphone === digits)
   const idCheck = idEditable && form.idNumber.trim() ? checkId(form.idType, form.idNumber, today) : null
   const autoDob = form.idType === 'sa' ? (idCheck?.ok ? idCheck.dateOfBirth : idEditable ? undefined : details?.dateOfBirth) : undefined

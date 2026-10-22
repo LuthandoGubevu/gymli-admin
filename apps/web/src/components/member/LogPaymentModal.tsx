@@ -104,9 +104,11 @@ export function LogPaymentModal({ member, open, onClose, editing }: Props) {
   const amountHint =
     listPrice === null
       ? 'No price set for this length. Type the amount paid.'
-      : amountCents !== null && amountCents !== listPrice
-        ? `Price list: ${formatRand(listPrice)}. Changed by you.`
-        : 'From the price list'
+      : amountCents === null
+        ? `Price list: ${formatRand(listPrice)}. Type the amount paid.`
+        : amountCents !== listPrice
+          ? `Price list: ${formatRand(listPrice)}. Changed by you.`
+          : 'From the price list'
 
   const startHint = editing
     ? 'Start date of this payment'

@@ -185,7 +185,7 @@ export function GymDataProvider({ children }: { children: ReactNode }) {
     }
     setTodayLogs(empty<DoorLog[]>([]))
     return onSnapshot(
-      query(collection(db, 'doorLogs'), where('branchId', '==', branchId), where('date', '==', today), orderBy('at', 'desc'), limit(500)),
+      query(collection(db, 'doorLogs'), where('branchId', '==', branchId), where('date', '==', today), orderBy('at', 'desc'), limit(3000)),
       (snap) => setTodayLogs({ data: snap.docs.map((d) => toDoorLog(d.id, d.data())), loading: false, error: null }),
       () => setTodayLogs((s) => ({ ...s, loading: false, error: LOAD_ERROR })),
     )

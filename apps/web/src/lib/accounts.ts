@@ -71,7 +71,7 @@ export function paymentRows(members: readonly Member[]): PaymentRow[] {
   for (const m of members) {
     const live = m.periods.filter((p) => !p.deleted)
     const firstAt = Math.min(...live.map((p) => p.loggedAt))
-    for (const p of live) rows.push(toRow(m, p, p.loggedAt === firstAt))
+    for (const p of live) if (!p.imported) rows.push(toRow(m, p, p.loggedAt === firstAt))
   }
   return rows.sort((a, b) => b.loggedAt - a.loggedAt)
 }

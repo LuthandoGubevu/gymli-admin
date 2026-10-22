@@ -131,6 +131,17 @@ describe('members', () => {
     await assertFails(clash)
   })
 
+  it('after a data reset (no counter yet) the first new member is GY-1001', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => deleteDoc(doc(ctx.firestore(), 'counters', 'members')))
+    const f = db('desk')
+    await assertSucceeds(runTransaction(f, async (tx) => {
+      const a = doc(collection(f, 'audit'))
+      tx.set(a, { at: serverTimestamp(), actor: { uid: 'desk', name: 'x', role: 'front_desk' }, action: 'member.create', entity: 'member', entityId: 'm9', summary: '' })
+      tx.set(doc(f, 'counters', 'members'), { next: 1002 })
+      tx.set(doc(f, 'members', 'm9'), { number: 1001, firstName: 'A', lastName: 'B', cellphone: '0820000000', branchId: 'b1', periods: [], fingerprint: null, deleted: false, updatedAt: serverTimestamp(), lastAuditId: a.id })
+    }))
+  })
+
   it('check-in PC may only record the fingerprint', async () => {
     const f = db('pc')
     await assertSucceeds(withAudit(f, 'pc', 'device', (id, tx) =>

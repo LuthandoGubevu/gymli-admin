@@ -29,7 +29,13 @@ export function MemberPicker({ open, onClose, onPick, title }: { open: boolean; 
       </div>
       <div className="-mt-8 flex flex-col">
         {results.length === 0 ? (
-          <EmptyState title="No members found">Check the spelling, or search by cellphone or GY-number.</EmptyState>
+          members.loading ? (
+            <EmptyState title="Loading members" />
+          ) : members.data.length === 0 ? (
+            <EmptyState title="No members yet">Add a member first (Members → Add member).</EmptyState>
+          ) : (
+            <EmptyState title="No members found">Check the spelling, or search by cellphone or GY-number.</EmptyState>
+          )
         ) : (
           results.map((m) => {
             const pill = statusPill(viewMember(m, today).info)

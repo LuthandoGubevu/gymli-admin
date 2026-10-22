@@ -53,3 +53,16 @@ describe('members helpers', () => {
     expect(initials('Thabo Nkosi')).toBe('TN')
   })
 })
+
+describe('import checks', () => {
+  it('flags a cellphone repeated in the file and a paid-until date over a year away', () => {
+    const rows = parseMemberCsv('Thabo Nkosi,0825554101,2026-11-01\nThabo N,082 555 4101,2026-11-01\nLong Paid,0831112222,2027-12-01', '2026-10-02')
+    expect(rows[0].error).toBeNull()
+    expect(rows[1].error).toMatch(/earlier line/)
+    expect(rows[2].error).toMatch(/more than a year/)
+  })
+  it('long names get a clear message', () => {
+    const errs = checkMemberInput({ ...EMPTY_MEMBER_INPUT, firstName: 'A'.repeat(81), lastName: 'B', cellphone: '082 555 4101' }, '2026-10-02', false)
+    expect(errs.firstName).toMatch(/80/)
+  })
+})

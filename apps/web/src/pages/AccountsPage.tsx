@@ -95,6 +95,7 @@ export function AccountsPage() {
   const scoped = useMemo(() => (scope === 'all' ? all.data : all.data.filter((m) => m.branchId === branch?.id)), [all.data, scope, branch?.id])
   const rows = useMemo(() => inRange(paymentRows(scoped), from, to), [scoped, from, to])
   const t = totals(rows)
+  const cashUpRows = useMemo(() => cashUp(rows), [rows])
 
   if (staff.role !== 'manager')
     return (
@@ -165,7 +166,7 @@ export function AccountsPage() {
       ) : tab === 'payments' ? (
         <PaymentsTable rows={rows} showBranch={scope === 'all'} branchName={branchName} subtitle={subtitle} from={from} to={to} totalsCents={t.cents} onExport={run} />
       ) : tab === 'cashup' ? (
-        <CashUpTable rows={cashUp(rows)} subtitle={subtitle} from={from} to={to} onExport={run} />
+        <CashUpTable rows={cashUpRows} subtitle={subtitle} from={from} to={to} onExport={run} />
       ) : tab === 'branches' ? (
         <BranchesReport members={all.data} branches={branches.data} from={from} to={to} today={today} subtitle={rangeText(from, to)} onExport={run} />
       ) : tab === 'renewals' ? (
