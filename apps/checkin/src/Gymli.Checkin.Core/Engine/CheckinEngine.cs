@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Gymli.Checkin.Core.Access;
 using Gymli.Checkin.Core.Hardware;
@@ -95,10 +96,32 @@ public sealed class CheckinEngine
                 _readerGate.Release();
             }
 
-            var outcome = await ProcessAsync(sample, ct);
-            ScanCompleted?.Invoke(outcome);
-            // Result stays on screen; scans during this time are ignored (one person, one entry).
-            await Task.Delay(TimeSpan.FromSeconds(_settings.ResultSeconds), ct).ContinueWith(_ => { });
+            var started = Stopwatch.GetTimestamp();
+            ScanOutcome outcome;
+            try
+            {
+                outcome = await ProcessAsync(sample, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // One bad scan must never stop the turnstile: note it and wait for the next finger.
+                Log.Error("Scan could not be processed", ex);
+                continue;
+            }
+            try { ScanCompleted?.Invoke(outcome); }
+            catch (Exception ex) { Log.Error("Showing the scan result failed", ex); }
+
+            // Let in: ignore the scanner while the arm turns (one press, one entry). Denied: no wait,
+            // the next person scans straight away (the kiosk screen times its own result display).
+            if (outcome.Allowed)
+            {
+                var left = _settings.CooldownMs - (int)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                if (left > 0) await Task.Delay(left, ct).ContinueWith(_ => { });
+            }
         }
     }
 
@@ -109,6 +132,7 @@ public sealed class CheckinEngine
         var today = _clock.Today;
         var candidates = Candidates();
         string? memberId = null;
+        var lookup = Stopwatch.StartNew();
         try
         {
             memberId = _reader.Identify(sample, candidates);
@@ -117,6 +141,7 @@ public sealed class CheckinEngine
         {
             Log.Error("Identify failed", ex);
         }
+        var lookupMs = lookup.ElapsedMilliseconds; // before the relay pulse
         var member = memberId is null ? null : _store.GetMember(memberId);
 
         ScanOutcome outcome;
@@ -157,7 +182,9 @@ public sealed class CheckinEngine
             }
         }
         _store.Enqueue(outcome.Log);
-        Log.Info($"Scan: {(outcome.Allowed ? "let in" : "denied")} {member?.Code ?? "unknown"} {(outcome.Allowed ? "" : outcome.Log.Text)}");
+        // Local audit line (timestamped by Log): who, the decision, and how long the lookup took.
+        Log.Info($"Scan: {(outcome.Allowed ? "LET IN" : "DENIED")} {member?.Code ?? "unknown finger"}{(member is null ? "" : $" ({member.Id})")}" +
+                 $"{(outcome.Allowed ? "" : $" · {outcome.Log.Text}")} · {candidates.Count} fingerprints searched in {lookupMs} ms");
         return outcome;
     }
 

@@ -41,7 +41,18 @@ public sealed class CheckinSettings
 
     public int SyncSeconds { get; set; } = 3;
     public int RelayPulseMs { get; set; } = 500;
+    /// <summary>Kiosk screen only: how long the result shows before going back to idle.</summary>
     public int ResultSeconds { get; set; } = 4;
+    /// <summary>
+    /// After a member is let in, scans are ignored for this long (the arm is turning; a second press
+    /// must not open it again). Denied scans have no wait: the next person can scan straight away.
+    /// </summary>
+    public int CooldownMs { get; set; } = 2500;
+    /// <summary>
+    /// ZKTeco readers: lowest 1:N match score that counts as a match (ZKFinger 10.0 scale; the SDK's own
+    /// default is 70). Higher = fewer wrong matches, but more "not recognised" for poor scans.
+    /// </summary>
+    public int MatchThreshold { get; set; } = 70;
 
     /// <summary>
     /// Which USB relay board drives the turnstile: "auto" (default: a HID "USBRelay" board if one is

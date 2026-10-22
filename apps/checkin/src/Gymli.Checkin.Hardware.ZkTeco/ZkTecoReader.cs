@@ -39,6 +39,15 @@ public sealed class ZkTecoReader : IFingerprintReader
     private readonly Dictionary<string, (uint Fid, byte[] Fmd)> _cached = new();
     private readonly Dictionary<uint, string> _byFid = new();
     private uint _nextFid = 1;
+    /// <summary>The list the cache was last loaded from; the local store hands out the same list until it changes.</summary>
+    private IReadOnlyList<StoredTemplate>? _loadedFrom;
+    private readonly int _threshold;
+
+    /// <param name="matchThreshold">Lowest DBIdentify score accepted as a match (SDK default 70).</param>
+    public ZkTecoReader(int matchThreshold = 70)
+    {
+        _threshold = Math.Clamp(matchThreshold, 1, 100);
+    }
 
     private const int TemplateSize = 2048;
     private const int DefaultWidth = 300, DefaultHeight = 400; // ZK9500 image size
@@ -71,8 +80,16 @@ public sealed class ZkTecoReader : IFingerprintReader
         _initialised = true;
         _db = _native.DBInit();
         if (_db == IntPtr.Zero) Log.Warn("ZKTeco fingerprint cache could not be created");
+        ForgetCache();
+    }
+
+    /// <summary>Empties our copy of the SDK cache (wiping the template copies). Caller holds <see cref="_lib"/>.</summary>
+    private void ForgetCache()
+    {
+        foreach (var (_, fmd) in _cached.Values) Array.Clear(fmd);
         _cached.Clear();
         _byFid.Clear();
+        _loadedFrom = null;
     }
 
     /// <summary>Releases the library. Caller holds <see cref="_lib"/>.</summary>
@@ -80,8 +97,7 @@ public sealed class ZkTecoReader : IFingerprintReader
     {
         if (_db != IntPtr.Zero) { try { _native!.DBFree(_db); } catch { } _db = IntPtr.Zero; }
         if (_initialised) { try { _native!.Terminate(); } catch { } _initialised = false; }
-        _cached.Clear();
-        _byFid.Clear();
+        ForgetCache();
     }
 
     /// <summary>Keeps trying to open the reader, so an unplugged reader comes back by itself.</summary>
@@ -258,7 +274,10 @@ public sealed class ZkTecoReader : IFingerprintReader
             uint fid = 0, score = 0;
             var rc = _native!.DBIdentify(_db, sample.Fmd, (uint)sample.Fmd.Length, ref fid, ref score);
             if (rc != ZkNative.OK) return null; // no member matched
-            return _byFid.TryGetValue(fid, out var id) ? id : null;
+            if (!_byFid.TryGetValue(fid, out var id)) return null;
+            // Explicit confidence check on top of the SDK's own: a weak match is treated as "not recognised".
+            if (score < _threshold) { Log.Info($"Weak match ignored (score {score}, needs {_threshold})"); return null; }
+            return id;
         }
     }
 
@@ -268,7 +287,9 @@ public sealed class ZkTecoReader : IFingerprintReader
     /// </summary>
     private void LoadCache(IReadOnlyList<StoredTemplate> templates)
     {
+        if (ReferenceEquals(templates, _loadedFrom)) return; // nothing changed since the last scan
         var wanted = new HashSet<string>();
+        var failed = false;
         foreach (var t in templates)
         {
             wanted.Add(t.MemberId);
@@ -276,7 +297,7 @@ public sealed class ZkTecoReader : IFingerprintReader
             if (_cached.Remove(t.MemberId, out have)) { _native!.DBDel(_db, have.Fid); _byFid.Remove(have.Fid); }
             var fid = _nextFid++;
             var rc = _native!.DBAdd(_db, fid, t.Fmd, (uint)t.Fmd.Length);
-            if (rc != ZkNative.OK) { Log.Warn($"Template for member {t.MemberId} not loaded ({ZkNative.Describe(rc)})"); continue; }
+            if (rc != ZkNative.OK) { Log.Warn($"Template for member {t.MemberId} not loaded ({ZkNative.Describe(rc)})"); failed = true; continue; }
             _cached[t.MemberId] = (fid, t.Fmd.ToArray());
             _byFid[fid] = t.MemberId;
         }
@@ -287,6 +308,7 @@ public sealed class ZkTecoReader : IFingerprintReader
             _cached.Remove(gone);
             _byFid.Remove(fid);
         }
+        _loadedFrom = failed ? null : templates; // retry failed ones on the next scan
     }
 
     public void Dispose()
@@ -296,7 +318,7 @@ public sealed class ZkTecoReader : IFingerprintReader
         lock (_lib)
         {
             if (_native is not null) Terminate();
-            foreach (var (_, fmd) in _cached.Values) Array.Clear(fmd);
+            else ForgetCache();
         }
     }
 }

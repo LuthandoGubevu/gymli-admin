@@ -80,6 +80,9 @@ On the reception PC (Windows 10/11, its own local user that signs in automatical
    ```json
    { "Mode": "hardware", "Reader": "zkteco", "DeviceEmail": "turnstile1@…", "DevicePassword": "…", "RelayType": "auto", "RelayPort": "COM3", "RelayPulseMs": 500 }
    ```
+   Optional: `"CooldownMs": 2500` (after a let-in, scans are ignored this long while the arm turns; denied scans
+   never wait) and `"MatchThreshold": 70` (ZKTeco: lowest match score accepted; raise it if anyone is ever
+   let in as someone else, lower it only if many members get "not recognised").
 5. **Back up the fingerprint key** (needed to move to a new PC without re-enrolling everyone):
    `"C:\Program Files\Gymli\Checkin\Gymli.Checkin.exe" --export-key` → store in the manager's password manager.
    On a replacement PC: `Gymli.Checkin.exe --import-key <key>` before first start.

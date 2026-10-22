@@ -162,6 +162,43 @@ public sealed class EngineTests : IDisposable
         Assert.ThrowsAny<CryptographicException>(() => p.Decrypt(Convert.ToBase64String(bytes)));
     }
 
+    /* ---------------- The scan loop (timing between people) ---------------- */
+
+    /// <summary>Runs the real loop on a fresh engine; returns the time each result came out.</summary>
+    private async Task<List<(bool Allowed, long Ms)>> RunLoop(int cooldownMs, int expected, Action<SimulatedReader> present)
+    {
+        var reader = new SimulatedReader();
+        var engine = new CheckinEngine(reader, _relay, _store, _clock, new CheckinSettings { Mode = "simulation", RelayPulseMs = 1, CooldownMs = cooldownMs }, () => true);
+        var results = new List<(bool, long)>();
+        var all = new TaskCompletionSource();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        engine.ScanCompleted += o => { lock (results) { results.Add((o.Allowed, sw.ElapsedMilliseconds)); if (results.Count == expected) all.TrySetResult(); } };
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var loop = engine.RunAsync(cts.Token);
+        present(reader);
+        await all.Task.WaitAsync(cts.Token);
+        cts.Cancel();
+        try { await loop; } catch (OperationCanceledException) { }
+        return results;
+    }
+
+    [Fact]
+    public async Task Loop_DeniedScans_DoNotWait_NextPersonScansStraightAway()
+    {
+        var r = await RunLoop(cooldownMs: 3000, expected: 3, reader => { reader.PresentFinger(null); reader.PresentFinger("lerato"); reader.PresentFinger(null); });
+        Assert.All(r, x => Assert.False(x.Allowed));
+        Assert.True(r[2].Ms - r[0].Ms < 1000, $"denied scans took {r[2].Ms - r[0].Ms} ms");
+    }
+
+    [Fact]
+    public async Task Loop_AfterLetIn_ScansWaitForTheCooldown_OnePressOneEntry()
+    {
+        var r = await RunLoop(cooldownMs: 700, expected: 2, reader => { reader.PresentFinger("thabo"); reader.PresentFinger("thabo"); });
+        Assert.True(r[0].Allowed);
+        Assert.True(r[1].Ms - r[0].Ms >= 600, $"second scan after {r[1].Ms - r[0].Ms} ms");
+        Assert.Equal(2, _relay.Pulses);
+    }
+
     public void Dispose()
     {
         _store.Dispose();

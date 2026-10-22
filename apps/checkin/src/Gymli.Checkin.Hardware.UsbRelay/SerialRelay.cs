@@ -26,13 +26,33 @@ public sealed class SerialRelay : ITurnstileRelay
     private DateTime _lastTry = DateTime.MinValue;
     private bool _warnedNoPort;
     private readonly object _openLock = new();
-    // Checked from the UI (tray) and the heartbeat at once: only one may open the port.
-    public bool IsConnected { get { lock (_openLock) return _port?.IsOpen == true || TryOpen(); } }
+    // Checked from the UI (tray), the heartbeat and the relay watcher at once: only one may open the port.
+    public bool IsConnected { get { lock (_openLock) return StillThere() || TryOpen(force: false); } }
 
-    private bool TryOpen()
+    /// <summary>
+    /// True while the port is open AND still plugged in. Windows can leave a pulled-out USB serial
+    /// port "open", so the port list is checked too; a vanished port is closed so it can be reopened.
+    /// </summary>
+    private bool StillThere()
     {
-        // Retry at most every 5 seconds (relay unplugged, or not yet plugged in)
-        if (DateTime.UtcNow - _lastTry < TimeSpan.FromSeconds(5)) return false;
+        if (_port is null) return false;
+        if (_port.IsOpen && SerialPort.GetPortNames().Contains(_port.PortName, StringComparer.OrdinalIgnoreCase)) return true;
+        Log.Warn($"Relay on {_port.PortName} unplugged");
+        Drop();
+        return false;
+    }
+
+    private void Drop()
+    {
+        try { _port?.Dispose(); } catch { }
+        _port = null;
+    }
+
+    /// <param name="force">A pulse is waiting: try now, even if the last try was moments ago.</param>
+    private bool TryOpen(bool force)
+    {
+        // Background checks retry at most every 5 seconds (relay unplugged, or not yet plugged in)
+        if (!force && DateTime.UtcNow - _lastTry < TimeSpan.FromSeconds(5)) return false;
         _lastTry = DateTime.UtcNow;
         try
         {
@@ -44,7 +64,8 @@ public sealed class SerialRelay : ITurnstileRelay
                 _warnedNoPort = true;
                 return false;
             }
-            _port?.Dispose();
+            Drop();
+            _warnedNoPort = false;
             _port = new SerialPort(name, 9600, Parity.None, 8, StopBits.One) { WriteTimeout = 500, ReadTimeout = 500 };
             _port.Open();
             Write(false); // make sure the arm starts locked
@@ -53,8 +74,7 @@ public sealed class SerialRelay : ITurnstileRelay
         }
         catch (Exception ex)
         {
-            _port?.Dispose();
-            _port = null;
+            Drop();
             Log.Warn($"Relay not available: {ex.Message}");
             return false;
         }
@@ -78,21 +98,25 @@ public sealed class SerialRelay : ITurnstileRelay
         await _gate.WaitAsync(ct);
         try
         {
-            if (!IsConnected) throw new IOException("Relay not connected");
+            bool ready;
+            lock (_openLock) ready = StillThere() || TryOpen(force: true);
+            if (!ready) throw new IOException("Relay not connected");
             try
             {
                 Write(true);
+                // Non-blocking wait: no thread is held while the contact is closed.
                 await Task.Delay(milliseconds, CancellationToken.None);
             }
             finally
             {
                 // Always switch off again, even if the wait failed — never leave the arm unlocked.
-                try { Write(false); } catch (Exception ex) { Log.Error("Relay did not switch off", ex); _port?.Dispose(); _port = null; }
+                try { Write(false); } catch (Exception ex) { Log.Error("Relay did not switch off", ex); lock (_openLock) Drop(); }
             }
         }
-        catch (Exception) when (_port is { IsOpen: false })
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _port = null;
+            // Pulled out mid-pulse, or the port broke: drop it, the next check opens it again.
+            lock (_openLock) Drop();
             throw;
         }
         finally
@@ -104,6 +128,6 @@ public sealed class SerialRelay : ITurnstileRelay
     public void Dispose()
     {
         try { if (_port?.IsOpen == true) Write(false); } catch { }
-        _port?.Dispose();
+        Drop();
     }
 }

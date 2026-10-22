@@ -43,7 +43,7 @@ public sealed class KioskHost : IDisposable
         }
         else
         {
-            Reader = settings.DigitalPersona ? new DigitalPersonaReader() : new ZkTecoReader();
+            Reader = settings.DigitalPersona ? new DigitalPersonaReader() : new ZkTecoReader(settings.MatchThreshold);
             Relay = RelayFactory.Create(settings);
         }
 
@@ -63,6 +63,26 @@ public sealed class KioskHost : IDisposable
         });
         _loops.Add(Task.Run(() => Forever("sync", () => Sync.RunAsync(_cts.Token))));
         _loops.Add(Task.Run(() => Forever("check-in", () => Engine.RunAsync(_cts.Token))));
+        _loops.Add(Task.Run(() => Forever("relay watch", () => WatchRelayAsync(_cts.Token))));
+    }
+
+    /// <summary>
+    /// Every 5 seconds: is the relay still plugged in? A pulled cable is noticed and logged, and the
+    /// board is reopened as soon as it is back, before the next member scans. (The reader has its own watcher.)
+    /// </summary>
+    private async Task WatchRelayAsync(CancellationToken ct)
+    {
+        var was = (bool?)null;
+        while (!ct.IsCancellationRequested)
+        {
+            bool now;
+            try { now = Relay.IsConnected; }
+            catch (Exception ex) { Log.Error("Relay check failed", ex); now = false; }
+            if (was == true && !now) Log.Warn($"Gate relay disconnected ({Relay.Name}); retrying every 5 seconds");
+            if (was == false && now) Log.Info($"Gate relay reconnected ({Relay.Name})");
+            was = now;
+            await Task.Delay(5000, ct);
+        }
     }
 
     /// <summary>Restarts a loop if it ever crashes, so the turnstile keeps working.</summary>
