@@ -4,16 +4,18 @@ Goal: prove Gymli works with the gym's **own** fingerprint reader and gate box, 
 wiring and without touching the gym's PC: the reader and the gate box are moved to a laptop running
 Gymli for about an hour, then plugged back. Do it at a quiet time.
 
-What we know: HID DigitalPersona reader on the counter (USB to the reception PC); a black gate
-box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app drives both today.
+What we know: a black gate box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app
+drives it today. Itensity's HID DigitalPersona reader needs HID's paid runtime, so Gymli uses its own
+**ZKTeco ZK9500** reader (free ZKFinger SDK) on the counter instead.
 
 ## Before the day (on your laptop, at home)
 - [ ] Laptop: Windows 10 or 11, 64-bit, charged, with internet on site (gym Wi-Fi or a phone hotspot).
 - [ ] Put the **GymliCheckin** folder (from `GymliCheckin-win-x64.zip`) on the laptop's desktop.
 - [ ] Double-click **Hardware test.bat** once, with nothing plugged in. It must open and finish; look at step 2:
-      - `dpfpdd.dll` / `dpfj.dll` **found** → the reader test will run on Sunday.
-      - **not found** → the laptop needs HID's DigitalPersona U.are.U runtime (it comes with HID's licensed
-        U.are.U SDK). Without it, Sunday tests the **gate only**; the reader is tested once the runtime is in.
+      - `libzkfp.dll` **found** → the ZK9500 reader test will run.
+      - **not found** → run `setup.exe` from ZKTeco's ZKFinger SDK (Fingerprint Reader Standard Driver) and try again.
+        If it says only the 32-bit version is installed, copy the x64 `libzkfp.dll` from the SDK's `c` folder
+        into the GymliCheckin folder.
 - [ ] Web app, signed in as manager, correct branch chosen: **Settings → Check-in PCs → Add check-in login**.
       Write down the email and password (shown once).
 - [ ] Agree a quiet time with the gym: while the two USB plugs are in your laptop, Itensity cannot open the gate,
@@ -36,7 +38,7 @@ box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app dr
 2. (Nothing to close: Itensity stays on the gym PC.)
    If Windows says "Windows protected your PC": **More info → Run anyway**.
 3. Follow the questions on screen:
-   - **Fingerprint software**: are `dpfpdd.dll` and `dpfj.dll` on the PC?
+   - **Fingerprint software**: is `libzkfp.dll` (ZKTeco) on the PC? (It also checks for HID's `dpfpdd.dll` / `dpfj.dll`.)
    - **Reader**: scan one finger 4 times → template; same finger → recognised; another finger → not recognised;
      plus the time to search 2,000 members.
    - **USB devices**: the list tells us what the gate box is.
@@ -45,7 +47,7 @@ box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app dr
 
 ## C. Live test (30 min) — only if the reader and the gate passed in B
 1. In the GymliCheckin folder, edit `appsettings.json`:
-   `"Mode": "hardware"`, `"DeviceEmail"` / `"DevicePassword"` from the check-in login,
+   `"Mode": "hardware"`, `"Reader": "zkteco"`, `"DeviceEmail"` / `"DevicePassword"` from the check-in login,
    and the relay line the hardware test printed (for example `"RelayType": "hid"`).
    Do **not** run `install.ps1` (that makes it start with Windows).
 2. Double-click **Gymli.Checkin.exe**. It runs hidden: its icon appears next to the clock (hover for status, click to open).
@@ -64,7 +66,8 @@ box in the cabinet, USB to the PC, two thin wires to the gate. Itensity's app dr
 ## What the results mean
 | Result | Next step |
 |---|---|
-| `dpfpdd.dll` / `dpfj.dll` not found | The PC needs HID's DigitalPersona U.are.U runtime. It comes with HID's U.are.U SDK, which is licensed — a cost decision before the trial. |
+| `libzkfp.dll` not found | Run the ZKFinger SDK `setup.exe` (free), or copy the x64 `libzkfp.dll` next to Gymli.Checkin.exe. |
+| "No reader found" with the driver installed | Check the ZK9500's USB cable and light; close any other fingerprint program; send the report. |
 | Reader ✓, gate box did not react to any pulse | The box uses Itensity's own protocol. Fit a 1-channel USB relay board (CH340 "LCUS" or HID "USBRelay", about R150–R300) to the same two gate wires. |
 | Reader ✓, gate ✓ | Ready for the trial: the existing reader and gate box work as they are. |
 | Gate opens but the reader fails the match test | Repeat with a clean, dry finger; send the report — the reader code is being checked on real hardware for the first time. |

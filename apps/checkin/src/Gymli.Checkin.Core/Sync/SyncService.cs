@@ -215,7 +215,7 @@ public sealed class SyncService
         if (cipher is null) return;
         // A template made in simulation mode would only confuse the real reader's matching (and vice versa).
         var format = t.Str("format");
-        if (format is not null && format != (_settings.Simulation ? "simulated" : "ansi-378-2004"))
+        if (format is not null && format != _settings.TemplateFormat)
         {
             Log.Warn($"Template for {m.Code} is in another format ({format}); re-enrol this member.");
             return;
@@ -371,7 +371,7 @@ public sealed class SyncService
                         ["memberId"] = Fs.Str(memberId),
                         ["cipher"] = Fs.Str(cipher),
                         ["keyId"] = Fs.Str(_store.KeyId),
-                        ["format"] = Fs.Str(_settings.Simulation ? "simulated" : "ansi-378-2004"),
+                        ["format"] = Fs.Str(_settings.TemplateFormat),
                         ["finger"] = Fs.Str(finger),
                         ["enrolledAt"] = Fs.Int(enrolledAt),
                     },

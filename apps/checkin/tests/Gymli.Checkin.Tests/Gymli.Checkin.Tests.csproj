@@ -20,6 +20,7 @@
     <ProjectReference Include="../../src/Gymli.Checkin.Core/Gymli.Checkin.Core.csproj" />
     <ProjectReference Include="../../src/Gymli.Checkin.Hardware.Simulated/Gymli.Checkin.Hardware.Simulated.csproj" />
     <ProjectReference Include="../../src/Gymli.Checkin.Hardware.UsbRelay/Gymli.Checkin.Hardware.UsbRelay.csproj" />
+    <ProjectReference Include="..\..\src\Gymli.Checkin.Hardware.ZkTeco\Gymli.Checkin.Hardware.ZkTeco.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../../../shared/test-vectors/access-rules.json" Link="access-rules.json" CopyToOutputDirectory="PreserveNewest" />

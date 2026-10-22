@@ -8,6 +8,7 @@ using Gymli.Checkin.Core.Sync;
 using Gymli.Checkin.Hardware.DigitalPersona;
 using Gymli.Checkin.Hardware.Simulated;
 using Gymli.Checkin.Hardware.UsbRelay;
+using Gymli.Checkin.Hardware.ZkTeco;
 
 namespace Gymli.Checkin.App;
 
@@ -42,7 +43,7 @@ public sealed class KioskHost : IDisposable
         }
         else
         {
-            Reader = new DigitalPersonaReader();
+            Reader = settings.DigitalPersona ? new DigitalPersonaReader() : new ZkTecoReader();
             Relay = RelayFactory.Create(settings);
         }
 
@@ -115,6 +116,7 @@ public sealed class KioskHost : IDisposable
         foreach (var (key, apply) in new (string, Action<string>)[]
         {
             ("GYMLI_MODE", v => settings.Mode = v),
+            ("GYMLI_READER", v => settings.Reader = v),
             ("GYMLI_EMULATOR_HOST", v => settings.EmulatorHost = v),
             ("GYMLI_PROJECT_ID", v => settings.FirebaseProjectId = v),
             ("GYMLI_DATABASE_ID", v => settings.FirebaseDatabaseId = v),

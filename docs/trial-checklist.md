@@ -11,7 +11,7 @@
 
 **At the gym — reception PC**
 - [ ] Windows user that signs in automatically; Windows Update set to outside opening hours
-- [ ] DigitalPersona runtime installed; reader plugged in (blue light)
+- [ ] ZKTeco driver installed (ZKFinger SDK `setup.exe`); ZK9500 plugged in (light on); Hardware test.bat passes the reader test
 - [ ] USB relay plugged in; COM port noted
 - [ ] `install.ps1` run; `appsettings.json`: `"Mode": "hardware"`, check-in email/password, `RelayPort`
 - [ ] `--export-key` done and key stored by the manager

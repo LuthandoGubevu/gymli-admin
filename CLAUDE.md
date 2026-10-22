@@ -2,7 +2,7 @@
 
 Gymli is a membership and door-access system for **one** South African gym group
 (Body Tone Gym, ~2,000 members per branch). Each **branch** has its own members, front desk,
-DigitalPersona 4500 fingerprint reader and tripod turnstile.
+ZKTeco ZK9500 fingerprint reader (free ZKFinger SDK; DigitalPersona 4500 still supported) and tripod turnstile.
 There is a live pitch and then a 5-day trial at the gym. **A reliable, working product
 matters more than extra features.** Do not add scope.
 

@@ -7,12 +7,13 @@ using Gymli.Checkin.Core.Engine;
 using Gymli.Checkin.Core.Hardware;
 using Gymli.Checkin.Hardware.DigitalPersona;
 using Gymli.Checkin.Hardware.UsbRelay;
+using Gymli.Checkin.Hardware.ZkTeco;
 
 namespace Gymli.Checkin.App;
 
 /// <summary>
 /// On-site hardware check (Gymli.Checkin.exe --hardware-test, or "Hardware test.bat").
-/// Walks through: the PC, the DigitalPersona software, the reader (enrol + match + speed),
+/// Walks through: the PC, the fingerprint software (ZKTeco or DigitalPersona), the reader (enrol + match + speed),
 /// the USB devices plugged in, and a test pulse on every possible relay. Nothing is sent
 /// to the cloud and no fingerprints are kept. Writes a report to the desktop.
 /// </summary>
@@ -43,12 +44,28 @@ public static class HardwareTest
 
         foreach (var e in KioskHost.SettingsErrors) Line($"✗ Settings: {e}");
 
-        Step("2. Fingerprint software (HID DigitalPersona U.are.U runtime)");
-        var dllsOk = CheckDll("dpfpdd") & CheckDll("dpfj");
-        if (!dllsOk) Line("→ Install the HID DigitalPersona U.are.U runtime (RTE), then run this test again.");
-
-        if (dllsOk) ReaderTest();
-        else Line("Skipping the reader test.");
+        Step("2. Fingerprint software");
+        Line("ZKTeco (ZK9500 and other ZKTeco readers):");
+        var zkOk = CheckDll("libzkfp");
+        if (!zkOk && OperatingSystem.IsWindows() && File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SysWOW64", "libzkfp.dll")))
+            Line("  Only the 32-bit libzkfp.dll is installed. Copy the 64-bit (x64) libzkfp.dll from the SDK's \"c\" folder into the GymliCheckin folder.");
+        Line("HID DigitalPersona (U.are.U 4500):");
+        var dpOk = CheckDll("dpfpdd") & CheckDll("dpfj");
+        // Test the reader the settings ask for when its software is there; otherwise whichever is installed.
+        var useDp = dpOk && (settings.DigitalPersona || !zkOk);
+        if (zkOk || dpOk)
+        {
+            Line($"→ Testing the {(useDp ? "DigitalPersona" : "ZKTeco")} reader.");
+            if (useDp != settings.DigitalPersona)
+                Line($"  Note: appsettings.json says \"Reader\": \"{settings.Reader}\". For this reader use \"Reader\": \"{(useDp ? "digitalpersona" : "zkteco")}\".");
+            ReaderTest(useDp ? new DigitalPersonaReader() : new ZkTecoReader());
+        }
+        else
+        {
+            Line("→ No fingerprint software. For a ZKTeco reader: run setup.exe from ZKTeco's ZKFinger SDK");
+            Line("  (Fingerprint Reader Standard Driver), then run this test again.");
+            Line("Skipping the reader test.");
+        }
 
         Step("4. USB devices plugged in");
         ListUsb();
@@ -61,17 +78,18 @@ public static class HardwareTest
 
     /* ---------------- Reader ---------------- */
 
-    private static void ReaderTest()
+    private static void ReaderTest(IFingerprintReader reader)
     {
         Step("3. Fingerprint reader");
-        using var reader = new DigitalPersonaReader();
+        using var _ = reader;
         try
         {
             reader.StartAsync(CancellationToken.None).GetAwaiter().GetResult();
             for (var i = 0; i < 15 && !reader.IsConnected; i++) Thread.Sleep(1000);
             if (!reader.IsConnected)
             {
-                Line("✗ No reader found. Check the USB cable (the reader's light should be on) and that no other program is using it.");
+                Line("✗ No reader found. Check the USB cable (the reader's light should be on), that no other program is using it,");
+                Line("  and that the software above matches the reader (a ZKTeco driver does not run an HID reader, and the other way round).");
                 return;
             }
             Line($"✓ Reader connected: {reader.Name}");
@@ -106,12 +124,15 @@ public static class HardwareTest
                 var many = Enumerable.Range(0, 2000).Select(i => new StoredTemplate(i == 1999 ? "test" : $"m{i}", template)).ToList();
                 var sw = Stopwatch.StartNew();
                 reader.Identify(same, many);
-                Line($"Speed: search of 2,000 members took {sw.ElapsedMilliseconds} ms");
+                var first = sw.ElapsedMilliseconds;
+                sw.Restart();
+                reader.Identify(same, many);
+                Line($"Speed: search of 2,000 members took {first} ms the first time, {sw.ElapsedMilliseconds} ms after that");
             }
         }
         catch (Exception ex)
         {
-            Line($"✗ Reader error: {ex.Message}");
+            Line($"✗ Reader error: {ex.GetType().Name}: {ex.Message}");
         }
     }
 

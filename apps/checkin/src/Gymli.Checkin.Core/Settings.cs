@@ -10,6 +10,19 @@ public sealed class CheckinSettings
     public string DeviceName { get; set; } = "Turnstile 1";
 
     /// <summary>
+    /// Which fingerprint reader is plugged in (hardware mode): "zkteco" (default: ZK9500 and other
+    /// ZKTeco USB readers, free ZKFinger SDK) or "digitalpersona" (HID U.are.U 4500, licensed runtime).
+    /// </summary>
+    public string Reader { get; set; } = "zkteco";
+    public bool DigitalPersona => string.Equals(Reader, "digitalpersona", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Format of the templates this PC makes, saved next to each template in the cloud. Templates from
+    /// another reader make cannot be matched, so they are skipped (the member is re-enrolled).
+    /// </summary>
+    public string TemplateFormat => Simulation ? "simulated" : DigitalPersona ? "ansi-378-2004" : "zkfinger-10";
+
+    /// <summary>
     /// "background" (default): no screen for members, the app runs minimised on the reception PC
     /// and members just scan their finger. "kiosk": full-screen check-in screen at the turnstile.
     /// </summary>

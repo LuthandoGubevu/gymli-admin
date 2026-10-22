@@ -6,7 +6,7 @@ namespace Gymli.Checkin.Core.Hardware;
 /// </summary>
 public sealed record FingerSample(byte[] Fmd);
 
-/// <summary>Fingerprint reader: DigitalPersona 4500 in production, a simulator on a desk.</summary>
+/// <summary>Fingerprint reader: ZKTeco (ZK9500) or DigitalPersona 4500 in production, a simulator on a desk.</summary>
 public interface IFingerprintReader : IDisposable
 {
     string Name { get; }

@@ -28,5 +28,6 @@
     <ProjectReference Include="../Gymli.Checkin.Hardware.Simulated/Gymli.Checkin.Hardware.Simulated.csproj" />
     <ProjectReference Include="../Gymli.Checkin.Hardware.DigitalPersona/Gymli.Checkin.Hardware.DigitalPersona.csproj" />
     <ProjectReference Include="../Gymli.Checkin.Hardware.UsbRelay/Gymli.Checkin.Hardware.UsbRelay.csproj" />
+    <ProjectReference Include="..\Gymli.Checkin.Hardware.ZkTeco\Gymli.Checkin.Hardware.ZkTeco.csproj" />
   </ItemGroup>
 </Project>
