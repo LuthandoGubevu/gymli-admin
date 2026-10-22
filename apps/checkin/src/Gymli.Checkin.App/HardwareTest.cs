@@ -41,6 +41,8 @@ public static class HardwareTest
         Line($"Windows: {RuntimeInformation.OSDescription} · {(Environment.Is64BitOperatingSystem ? "64-bit" : "32-bit")}");
         Line($"Computer: {Environment.MachineName} · {Environment.ProcessorCount} cores · {GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1_073_741_824.0:0.0} GB memory");
 
+        foreach (var e in KioskHost.SettingsErrors) Line($"✗ Settings: {e}");
+
         Step("2. Fingerprint software (HID DigitalPersona U.are.U runtime)");
         var dllsOk = CheckDll("dpfpdd") & CheckDll("dpfj");
         if (!dllsOk) Line("→ Install the HID DigitalPersona U.are.U runtime (RTE), then run this test again.");
@@ -140,7 +142,8 @@ public static class HardwareTest
 
     private static void ListUsb()
     {
-        Line($"Serial (COM) ports: {(SerialPort.GetPortNames() is { Length: > 0 } ports ? string.Join(", ", ports) : "none")}");
+        var ports = SerialPorts.List();
+        Line($"Serial (COM) ports: {(ports.Count > 0 ? string.Join(", ", ports.Select(p => p.Name + (p.Bluetooth ? " (Bluetooth)" : p.Ch340 ? " (CH340 relay)" : ""))) : "none")}");
         try
         {
             var hid = HidRelay.Find();
@@ -175,8 +178,12 @@ public static class HardwareTest
                     candidates.Add(($"HID relay {HidRelaySafe(d)} channel {ch}", () => new HidRelay(ch, d.DevicePath)));
         }
         catch { }
-        foreach (var port in SerialPort.GetPortNames().OrderBy(p => p))
-            candidates.Add(($"Serial relay on {port} (CH340 / LCUS protocol)", () => new SerialRelay(port, settings.RelayChannel)));
+        foreach (var port in SerialPorts.List())
+        {
+            if (port.Bluetooth) { Line($"  {port.Name} is a Bluetooth port, not a relay: skipped"); continue; }
+            var name = port.Name;
+            candidates.Add(($"Serial relay on {name} ({(port.Ch340 ? "CH340 relay board" : "unknown USB serial device")}, LCUS protocol)", () => new SerialRelay(name, settings.RelayChannel)));
+        }
 
         if (candidates.Count == 0)
         {

@@ -24,7 +24,10 @@ public sealed class SerialRelay : ITurnstileRelay
 
     public string Name => $"USB relay {_port?.PortName ?? _configuredPort}";
     private DateTime _lastTry = DateTime.MinValue;
-    public bool IsConnected => _port?.IsOpen == true || TryOpen();
+    private bool _warnedNoPort;
+    private readonly object _openLock = new();
+    // Checked from the UI (tray) and the heartbeat at once: only one may open the port.
+    public bool IsConnected { get { lock (_openLock) return _port?.IsOpen == true || TryOpen(); } }
 
     private bool TryOpen()
     {
@@ -33,8 +36,14 @@ public sealed class SerialRelay : ITurnstileRelay
         _lastTry = DateTime.UtcNow;
         try
         {
-            var name = string.IsNullOrWhiteSpace(_configuredPort) ? SerialPort.GetPortNames().OrderBy(p => p).LastOrDefault() : _configuredPort;
-            if (name is null) return false;
+            // No port set: only a CH340 relay board is used (never a guess, e.g. a Bluetooth port).
+            var name = string.IsNullOrWhiteSpace(_configuredPort) ? SerialPorts.List().FirstOrDefault(p => p.Ch340)?.Name : _configuredPort;
+            if (name is null)
+            {
+                if (!_warnedNoPort) Log.Warn("No CH340 relay board found. Plug it in, or set RelayPort in appsettings.json.");
+                _warnedNoPort = true;
+                return false;
+            }
             _port?.Dispose();
             _port = new SerialPort(name, 9600, Parity.None, 8, StopBits.One) { WriteTimeout = 500, ReadTimeout = 500 };
             _port.Open();

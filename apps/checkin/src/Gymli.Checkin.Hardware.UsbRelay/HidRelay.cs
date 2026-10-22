@@ -30,7 +30,9 @@ public sealed class HidRelay : ITurnstileRelay
     }
 
     public string Name => _name;
-    public bool IsConnected => _stream is not null || TryOpen();
+    private readonly object _openLock = new();
+    // Checked from the UI (tray) and the heartbeat at once: only one may open the device.
+    public bool IsConnected { get { lock (_openLock) return _stream is not null || TryOpen(); } }
 
     /// <summary>HID relay boards plugged in right now.</summary>
     public static IReadOnlyList<HidDevice> Find() =>

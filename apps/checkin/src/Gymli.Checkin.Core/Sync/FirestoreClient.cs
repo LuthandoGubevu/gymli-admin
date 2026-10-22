@@ -17,6 +17,10 @@ public sealed class FirestoreClient : IDisposable
     private string? _refreshToken;
     private DateTimeOffset _expires;
     private readonly SemaphoreSlim _authGate = new(1, 1);
+    /// <summary>After a refused login, wait before trying the password again (Firebase locks accounts that retry too often).</summary>
+    private DateTimeOffset _authRetryAt = DateTimeOffset.MinValue;
+    private string? _authError;
+    private static readonly TimeSpan AuthRetry = TimeSpan.FromMinutes(2);
 
     public string? Uid { get; private set; }
 
@@ -58,10 +62,16 @@ public sealed class FirestoreClient : IDisposable
                 _refreshToken = null;
             }
             if (string.IsNullOrEmpty(_s.DeviceEmail)) throw new SyncException("No check-in login set. Add DeviceEmail and DevicePassword in appsettings.json.");
+            if (DateTimeOffset.UtcNow < _authRetryAt) throw new SyncException(_authError ?? "Check-in login refused", authFailed: true);
             var resp = await _http.PostAsJsonAsync($"{AuthBase}/accounts:signInWithPassword?key={_s.FirebaseApiKey}",
                 new { email = _s.DeviceEmail, password = _s.DevicePassword, returnSecureToken = true }, ct);
             var body = await resp.Content.ReadAsStringAsync(ct);
-            if (!resp.IsSuccessStatusCode) throw new SyncException($"Check-in login refused ({Short(body)})", authFailed: true);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _authError = $"Check-in login refused ({Short(body)}). Check DeviceEmail and DevicePassword; retrying in {AuthRetry.TotalMinutes:0} minutes.";
+                _authRetryAt = DateTimeOffset.UtcNow + AuthRetry;
+                throw new SyncException(_authError, authFailed: true);
+            }
             res = JsonNode.Parse(body);
             Set(res!["idToken"]!.GetValue<string>(), res["refreshToken"]!.GetValue<string>(), res["expiresIn"]!.GetValue<string>(), res["localId"]!.GetValue<string>());
             return _idToken!;
@@ -109,6 +119,22 @@ public sealed class FirestoreClient : IDisposable
             if (item?["document"] is JsonObject d) list.Add(FsDoc.From(d));
         }
         return list;
+    }
+
+    /// <summary>Number of documents matching a query (a count costs about one read per 1,000 documents).</summary>
+    public async Task<long> CountAsync(JsonObject structuredQuery, CancellationToken ct)
+    {
+        var body = new JsonObject
+        {
+            ["structuredAggregationQuery"] = new JsonObject
+            {
+                ["structuredQuery"] = structuredQuery,
+                ["aggregations"] = new JsonArray(new JsonObject { ["alias"] = "n", ["count"] = new JsonObject() }),
+            },
+        };
+        var res = await SendAsync(HttpMethod.Post, $"{DocsBase}:runAggregationQuery", body, ct);
+        var v = res?.AsArray().FirstOrDefault()?["result"]?["aggregateFields"]?["n"]?["integerValue"]?.GetValue<string>();
+        return long.TryParse(v, out var n) ? n : 0;
     }
 
     public async Task<FsDoc?> GetAsync(string path, CancellationToken ct)

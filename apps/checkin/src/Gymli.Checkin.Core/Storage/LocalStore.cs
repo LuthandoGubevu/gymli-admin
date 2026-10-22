@@ -90,6 +90,33 @@ public sealed class LocalStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Removes local members (and their templates) that are no longer in this branch in the cloud:
+    /// deleted outright (e.g. a data reset) or moved to another branch. Returns how many.
+    /// </summary>
+    public int RemoveMembersNotIn(IReadOnlySet<string> keep)
+    {
+        lock (_gate)
+        {
+            var gone = _members.Values.Where(m => !m.Deleted && !keep.Contains(m.Id)).Select(m => m.Id).ToList();
+            if (gone.Count == 0) return 0;
+            using var tx = _db.BeginTransaction();
+            foreach (var id in gone)
+            {
+                using var cmd = _db.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = "DELETE FROM members WHERE id=$id";
+                cmd.Parameters.AddWithValue("$id", id);
+                cmd.ExecuteNonQuery();
+                DeleteTemplateLocked(id, tx);
+                _members.Remove(id);
+            }
+            tx.Commit();
+            LoadTemplatesLocked();
+            return gone.Count;
+        }
+    }
+
     /// <summary>Forgets every member and template (this PC was moved to another branch).</summary>
     public void ClearMembers()
     {

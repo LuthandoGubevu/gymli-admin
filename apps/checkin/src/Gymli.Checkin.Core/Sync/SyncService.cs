@@ -18,12 +18,15 @@ public sealed class SyncService
     private const string BranchKey = "branch";
     private static readonly TimeSpan CursorOverlap = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan HeartbeatEvery = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ReconcileEvery = TimeSpan.FromMinutes(10);
+    private const int PageSize = 300;
 
     private readonly FirestoreClient _fs;
     private readonly LocalStore _store;
     private readonly CheckinSettings _settings;
     private readonly Func<(bool reader, bool relay)> _hardware;
     private DateTimeOffset _lastHeartbeat = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastReconcile = DateTimeOffset.MinValue;
     private string? _branchId;
 
     /// <summary>The branch this PC belongs to (from its check-in login). Only that branch's members are kept.</summary>
@@ -73,10 +76,21 @@ public sealed class SyncService
     public async Task SyncOnceAsync(CancellationToken ct)
     {
         await LoadBranchAsync(force: DateTimeOffset.UtcNow - _lastHeartbeat > HeartbeatEvery, ct);
-        await PullMembersAsync(ct);
-        await PushDoorLogsAsync(ct);
-        await PollEnrolRequestsAsync(ct);
-        if (DateTimeOffset.UtcNow - _lastHeartbeat > HeartbeatEvery) await HeartbeatAsync(ct);
+        // Each step runs even if an earlier one failed (e.g. one bad member must not stop door-log
+        // uploads, enrolment or the heartbeat). The first error is reported afterwards.
+        Exception? first = null;
+        async Task Step(Func<Task> work)
+        {
+            try { await work(); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex) { first ??= ex; }
+        }
+        await Step(() => PullMembersAsync(ct));
+        await Step(() => ReconcileMembersAsync(ct));
+        await Step(() => PushDoorLogsAsync(ct));
+        await Step(() => PollEnrolRequestsAsync(ct));
+        if (DateTimeOffset.UtcNow - _lastHeartbeat > HeartbeatEvery) await Step(() => HeartbeatAsync(ct));
+        if (first is not null) throw first;
     }
 
     /* ---------------- Branch ---------------- */
@@ -107,19 +121,28 @@ public sealed class SyncService
 
     /* ---------------- Members ---------------- */
 
+    /// <summary>
+    /// Members changed since the last sync, oldest first, in pages of 300. Pages follow a cursor on
+    /// (updatedAt, document), so hundreds of members saved at the same moment (an import, or the
+    /// first-branch setup) never make the sync repeat the same page.
+    /// </summary>
     public async Task PullMembersAsync(CancellationToken ct)
     {
-        for (var page = 0; page < 50; page++)
+        var cursor = _store.GetState(CursorKey);
+        var from = cursor is null ? DateTimeOffset.UnixEpoch : DateTimeOffset.Parse(cursor) - CursorOverlap;
+        JsonObject? startAfter = null;
+        for (var page = 0; page < 200; page++)
         {
-            var cursor = _store.GetState(CursorKey);
-            var from = cursor is null ? DateTimeOffset.UnixEpoch : DateTimeOffset.Parse(cursor) - CursorOverlap;
             var query = new JsonObject
             {
                 ["from"] = new JsonArray(new JsonObject { ["collectionId"] = "members" }),
                 ["where"] = Fs.And(Fs.FieldFilter("branchId", "EQUAL", Fs.Str(Branch)), Fs.FieldFilter("updatedAt", "GREATER_THAN", Fs.Time(from))),
-                ["orderBy"] = new JsonArray(new JsonObject { ["field"] = new JsonObject { ["fieldPath"] = "updatedAt" }, ["direction"] = "ASCENDING" }),
-                ["limit"] = 300,
+                ["orderBy"] = new JsonArray(
+                    new JsonObject { ["field"] = new JsonObject { ["fieldPath"] = "updatedAt" }, ["direction"] = "ASCENDING" },
+                    new JsonObject { ["field"] = new JsonObject { ["fieldPath"] = "__name__" }, ["direction"] = "ASCENDING" }),
+                ["limit"] = PageSize,
             };
+            if (startAfter is not null) query["startAt"] = startAfter;
             var docs = await _fs.RunQueryAsync(query, ct);
             if (docs.Count == 0) return;
 
@@ -131,11 +154,57 @@ public sealed class SyncService
                 await PullTemplateAsync(m, ct);
             }
 
-            var newest = docs.Max(d => DateTimeOffset.Parse(d.Str("updatedAt")!));
-            var old = cursor is null ? DateTimeOffset.MinValue : DateTimeOffset.Parse(cursor);
+            var last = docs[^1];
+            var lastTime = last.Str("updatedAt")!;
+            var newest = DateTimeOffset.Parse(lastTime);
+            var old = _store.GetState(CursorKey) is { } c ? DateTimeOffset.Parse(c) : DateTimeOffset.MinValue;
             if (newest > old) _store.SetState(CursorKey, newest.ToString("o"));
-            if (docs.Count < 300 || newest <= old) return;
+            if (docs.Count < PageSize) return;
+            startAfter = new JsonObject
+            {
+                ["values"] = new JsonArray(new JsonObject { ["timestampValue"] = lastTime }, new JsonObject { ["referenceValue"] = last.Name }),
+                ["before"] = false,
+            };
         }
+    }
+
+    /// <summary>
+    /// Every 10 minutes: does the cloud have the same number of members in this branch as this PC?
+    /// (A count costs about two reads.) If not, fetch just the member IDs and remove the ones that are
+    /// gone — deleted outright (a data reset) or moved to another branch — with their fingerprints.
+    /// </summary>
+    public async Task ReconcileMembersAsync(CancellationToken ct, bool force = false)
+    {
+        if (!force && DateTimeOffset.UtcNow - _lastReconcile < ReconcileEvery) return;
+        _lastReconcile = DateTimeOffset.UtcNow;
+        var where = Fs.And(Fs.FieldFilter("branchId", "EQUAL", Fs.Str(Branch)), Fs.FieldFilter("deleted", "EQUAL", Fs.Bool(false)));
+        var remote = await _fs.CountAsync(new JsonObject
+        {
+            ["from"] = new JsonArray(new JsonObject { ["collectionId"] = "members" }),
+            ["where"] = where.DeepClone(),
+        }, ct);
+        if (remote == _store.MemberCount) return;
+
+        var keep = new HashSet<string>();
+        string? after = null;
+        for (var page = 0; page < 100; page++)
+        {
+            var query = new JsonObject
+            {
+                ["select"] = new JsonObject { ["fields"] = new JsonArray(new JsonObject { ["fieldPath"] = "__name__" }) },
+                ["from"] = new JsonArray(new JsonObject { ["collectionId"] = "members" }),
+                ["where"] = where.DeepClone(),
+                ["orderBy"] = new JsonArray(new JsonObject { ["field"] = new JsonObject { ["fieldPath"] = "__name__" }, ["direction"] = "ASCENDING" }),
+                ["limit"] = 1000,
+            };
+            if (after is not null) query["startAt"] = new JsonObject { ["values"] = new JsonArray(new JsonObject { ["referenceValue"] = after }), ["before"] = false };
+            var docs = await _fs.RunQueryAsync(query, ct);
+            foreach (var d in docs) keep.Add(d.Id);
+            if (docs.Count < 1000) break;
+            after = docs[^1].Name;
+        }
+        var removed = _store.RemoveMembersNotIn(keep);
+        if (removed > 0) Log.Info($"Removed {removed} member(s) no longer in this branch, with their fingerprints");
     }
 
     private async Task PullTemplateAsync(LocalMember m, CancellationToken ct)

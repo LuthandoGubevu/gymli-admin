@@ -75,6 +75,62 @@ public sealed class SyncEmulatorTests : IDisposable
         await sync.HeartbeatAsync(default);
     }
 
+    /// <summary>Writes straight to the emulator, bypassing the rules (test setup only).</summary>
+    private static async Task AdminCommitAsync(System.Text.Json.Nodes.JsonArray writes)
+    {
+        using var http = new HttpClient();
+        using var req = new HttpRequestMessage(HttpMethod.Post, "http://127.0.0.1:8080/v1/projects/demo-gymli/databases/(default)/documents:commit");
+        req.Headers.Authorization = new("Bearer", "owner");
+        req.Content = new StringContent(new System.Text.Json.Nodes.JsonObject { ["writes"] = writes }.ToJsonString(), Encoding.UTF8, "application/json");
+        var res = await http.SendAsync(req);
+        Assert.True(res.IsSuccessStatusCode, await res.Content.ReadAsStringAsync());
+    }
+
+    [SkippableFact]
+    public async Task ManyMembersSavedAtOnce_AllArrive_AndHardDeletedOnesAreRemoved()
+    {
+        Skip.IfNot(EmulatorUp(), "Firebase emulator not running");
+        const string docs = "projects/demo-gymli/databases/(default)/documents/members/";
+        var ids = Enumerable.Range(0, 320).Select(i => $"bulk{i:000}").ToList();
+        var stamp = DateTimeOffset.UtcNow.AddSeconds(5).UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.ffffffZ");
+        System.Text.Json.Nodes.JsonObject Create(string id, int n) => new()
+        {
+            ["update"] = new System.Text.Json.Nodes.JsonObject
+            {
+                ["name"] = docs + id,
+                ["fields"] = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["branchId"] = Fs.Str("sandton"), ["number"] = Fs.Int(n), ["firstName"] = Fs.Str("Bulk"), ["lastName"] = Fs.Str(id),
+                    ["cellphone"] = Fs.Str("0800000000"), ["periods"] = Fs.Array([]), ["fingerprint"] = Fs.Null(), ["deleted"] = Fs.Bool(false),
+                    ["updatedAt"] = new System.Text.Json.Nodes.JsonObject { ["timestampValue"] = stamp },
+                },
+            },
+        };
+        System.Text.Json.Nodes.JsonObject Delete(string id) => new() { ["delete"] = docs + id };
+
+        // 320 members with the SAME updatedAt (like an import or the first-branch setup)
+        await AdminCommitAsync(new(ids.Select((id, i) => (System.Text.Json.Nodes.JsonNode)Create(id, i + 1)).ToArray()));
+        try
+        {
+            using var fs = new FirestoreClient(_settings);
+            using var store = new LocalStore(Path.Combine(_dir, "bulk.db"), new TemplateProtector(RandomNumberGenerator.GetBytes(32)));
+            var sync = new SyncService(fs, store, _settings, () => (true, true));
+            await sync.SyncOnceAsync(default);
+            Assert.All(ids, id => Assert.NotNull(store.GetMember(id)));
+
+            // Half of them hard-deleted in the cloud (a data reset): the PC drops them too
+            await AdminCommitAsync(new(ids.Take(160).Select(id => (System.Text.Json.Nodes.JsonNode)Delete(id)).ToArray()));
+            await sync.ReconcileMembersAsync(default, force: true);
+            Assert.All(ids.Take(160), id => Assert.Null(store.GetMember(id)));
+            Assert.All(ids.Skip(160), id => Assert.NotNull(store.GetMember(id)));
+            Assert.Contains(store.Members, m => m.Number == 1007); // real members stay
+        }
+        finally
+        {
+            await AdminCommitAsync(new(ids.Select(id => (System.Text.Json.Nodes.JsonNode)Delete(id)).ToArray()));
+        }
+    }
+
     [SkippableFact]
     public async Task OtherBranch_OnlyGetsItsOwnMembers_AndTurnsAwayOthers()
     {

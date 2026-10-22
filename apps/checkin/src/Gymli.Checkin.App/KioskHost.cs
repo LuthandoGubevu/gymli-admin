@@ -60,8 +60,8 @@ public sealed class KioskHost : IDisposable
             try { await Reader.StartAsync(_cts.Token); }
             catch (Exception ex) { Log.Error("Reader did not start", ex); }
         });
-        _ = Task.Run(() => Forever("sync", () => Sync.RunAsync(_cts.Token)));
-        _ = Task.Run(() => Forever("check-in", () => Engine.RunAsync(_cts.Token)));
+        _loops.Add(Task.Run(() => Forever("sync", () => Sync.RunAsync(_cts.Token))));
+        _loops.Add(Task.Run(() => Forever("check-in", () => Engine.RunAsync(_cts.Token))));
     }
 
     /// <summary>Restarts a loop if it ever crashes, so the turnstile keeps working.</summary>
@@ -85,6 +85,9 @@ public sealed class KioskHost : IDisposable
         }
     }
 
+    /// <summary>Problems reading the settings files; logged as soon as logging starts (see Program).</summary>
+    public static List<string> SettingsErrors { get; } = new();
+
     public static CheckinSettings LoadSettings()
     {
         var settings = new CheckinSettings();
@@ -104,7 +107,9 @@ public sealed class KioskHost : IDisposable
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Could not read {path}: {ex.Message}");
+                // e.g. "C:\Data" with a single backslash. The previous file's settings stay in use, so say so loudly.
+                SettingsErrors.Add($"Could not read {path}: {ex.Message}. Fix the file (check commas, quotes and use \\\\ in paths) and restart Gymli.");
+                Console.Error.WriteLine(SettingsErrors[^1]);
             }
         }
         foreach (var (key, apply) in new (string, Action<string>)[]
@@ -124,9 +129,13 @@ public sealed class KioskHost : IDisposable
         return settings;
     }
 
+    private readonly List<Task> _loops = new();
+
     public void Dispose()
     {
         _cts.Cancel();
+        // Let a running capture or a queued door log finish before the reader and database close.
+        try { Task.WaitAll(_loops.ToArray(), TimeSpan.FromSeconds(3)); } catch { /* cancelled */ }
         Reader.Dispose();
         Relay.Dispose();
         Store.Dispose();

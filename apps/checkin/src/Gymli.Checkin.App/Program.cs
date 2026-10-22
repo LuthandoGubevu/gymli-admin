@@ -22,19 +22,25 @@ public static class Program
         var settings = KioskHost.LoadSettings();
         Directory.CreateDirectory(settings.DataFolder);
         Log.Init(settings.DataFolder);
+        foreach (var e in KioskHost.SettingsErrors) Log.Error(e);
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("Unhandled error", e.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, e) => { Log.Error("Background error", e.Exception); e.SetObserved(); };
 
         if (args.Length > 0 && args[0] == "--export-key")
         {
+            var own = UseConsole();
             TemplateProtector.LoadOrCreate(settings.DataFolder);
+            Console.WriteLine("Fingerprint key (store it safely, e.g. in the manager's password manager):");
             Console.WriteLine(TemplateProtector.Export(settings.DataFolder));
+            if (own) { Console.Write("Press Enter to close… "); Console.ReadLine(); }
             return 0;
         }
         if (args.Length > 1 && args[0] == "--import-key")
         {
+            var own = UseConsole();
             TemplateProtector.LoadOrCreate(settings.DataFolder, args[1]);
             Console.WriteLine("Key imported.");
+            if (own) { Console.Write("Press Enter to close… "); Console.ReadLine(); }
             return 0;
         }
         if (args.Length > 0 && args[0] == "--hardware-test")
@@ -63,6 +69,24 @@ public static class Program
         App.Host.Start();
         return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
+
+    /// <summary>
+    /// Gymli is a window app, so text written to the console is lost. Attach to the PowerShell/cmd
+    /// window it was started from, or open a console of its own. Returns true when it opened its own.
+    /// </summary>
+    private static bool UseConsole()
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+        if (AttachConsole(-1)) { Console.WriteLine(); return false; }
+        AllocConsole();
+        return true;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool AttachConsole(int processId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool AllocConsole();
 
     public static AppBuilder BuildAvaloniaApp() =>
         AppBuilder.Configure<App>().UsePlatformDetect().LogToTrace();

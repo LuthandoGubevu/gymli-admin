@@ -73,6 +73,7 @@ public sealed class CheckinEngine
             }
 
             FingerSample sample;
+            _identifyCts?.Dispose();
             _identifyCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             await _readerGate.WaitAsync(ct);
             try
@@ -178,7 +179,7 @@ public sealed class CheckinEngine
     public void RequestEnrol(EnrolRequest req)
     {
         lock (_enrolGate) _pendingEnrol = req;
-        _identifyCts?.Cancel();
+        try { _identifyCts?.Cancel(); } catch (ObjectDisposedException) { /* replaced by the next capture */ }
     }
 
     private async Task EnrolAsync(EnrolRequest req, CancellationToken ct)
@@ -199,6 +200,9 @@ public sealed class CheckinEngine
             await Sync.UpdateEnrolAsync(req.Id, "scanning", 0, "Place the finger flat on the scanner", ct);
             var captured = 0;
             var deadline = DateTimeOffset.UtcNow.AddMinutes(3);
+            // Members cannot check in while an enrolment holds the reader: if reception stops pressing
+            // "Capture scan" (e.g. the browser tab was closed), give the turnstile back after a minute.
+            var lastPress = DateTimeOffset.UtcNow;
             byte[]? template = null;
             while (template is null)
             {
@@ -230,10 +234,17 @@ public sealed class CheckinEngine
                 }
                 if (latest.CaptureSeq <= captured)
                 {
+                    if (DateTimeOffset.UtcNow - lastPress > TimeSpan.FromMinutes(1))
+                    {
+                        await Sync.UpdateEnrolAsync(req.Id, "failed", captured, "Stopped: no scan for a minute. Start again.", ct);
+                        EnrolChanged?.Invoke(null);
+                        return;
+                    }
                     EnrolChanged?.Invoke(new EnrolProgress(name, captured, EnrolScans, "Press Capture scan at reception", false, false));
                     await Task.Delay(700, ct);
                     continue;
                 }
+                lastPress = DateTimeOffset.UtcNow;
                 EnrolChanged?.Invoke(new EnrolProgress(name, captured, EnrolScans, captured == 0 ? "Place your finger flat on the scanner" : "Lift, then place the same finger again", false, false));
                 using var captureCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 captureCts.CancelAfter(TimeSpan.FromSeconds(20));
