@@ -3,6 +3,7 @@ using System.IO.Ports;
 using System.Runtime.InteropServices;
 using System.Text;
 using Gymli.Checkin.Core;
+using Gymli.Checkin.Core.Engine;
 using Gymli.Checkin.Core.Hardware;
 using Gymli.Checkin.Hardware.DigitalPersona;
 using Gymli.Checkin.Hardware.UsbRelay;
@@ -73,18 +74,20 @@ public static class HardwareTest
             }
             Line($"✓ Reader connected: {reader.Name}");
 
-            Line("Enrol: place the SAME finger 4 times (lift it between scans).");
+            Line("Enrol: place the SAME finger 4 times (lift it between scans). The reader may ask for up to 4 more.");
             var samples = new List<FingerSample>();
-            for (var i = 1; i <= 4; i++)
+            byte[]? template = null;
+            for (var i = 1; i <= CheckinEngine.MaxEnrolScans && template is null; i++)
             {
-                Console.Write($"  Scan {i} of 4: place the finger… ");
+                Console.Write(i <= CheckinEngine.EnrolScans ? $"  Scan {i} of {CheckinEngine.EnrolScans}: place the finger… " : $"  Extra scan {i}: place the same finger again… ");
                 var s = Capture(reader);
                 if (s is null) { Line("✗ no scan within 30 seconds"); return; }
                 samples.Add(s);
                 Line($"✓ ({s.Fmd.Length} bytes)");
+                if (i >= CheckinEngine.EnrolScans) template = reader.CreateTemplate(samples);
             }
-            var template = reader.CreateTemplate(samples);
-            if (template is null) { Line("✗ The 4 scans did not make a template. Run the test again with a clean, dry finger."); return; }
+            if (template is null) { Line($"✗ {samples.Count} scans did not make a template. Run the test again with a clean, dry finger."); return; }
+            Line($"Enrolment took {samples.Count} scans");
             Line($"✓ Template made ({template.Length} bytes)");
 
             Console.Write("Match: place the SAME finger again… ");

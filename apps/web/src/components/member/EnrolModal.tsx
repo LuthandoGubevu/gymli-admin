@@ -78,9 +78,10 @@ export function EnrolModal({ member, open, onClose, onLogPayment }: Props) {
   const failed = req?.status === 'failed'
   const step = req?.step ?? 0
   const waitingForPc = !!req && req.status === 'pending'
-  const progress = done ? 100 : (step / SCANS) * 100
+  const progress = done ? 100 : Math.min(step / SCANS, 1) * 100
 
-  let headline = `Scan ${Math.min(step + 1, SCANS)} of ${SCANS}`
+  // The reader may ask for a few extra scans after the first 4
+  let headline = step >= SCANS ? 'One more scan' : `Scan ${step + 1} of ${SCANS}`
   let hint = step === 0 ? 'Place the finger flat on the scanner' : 'Lift, then place the same finger flat on the scanner'
   if (!online && !done) {
     headline = 'Check-in PC offline'

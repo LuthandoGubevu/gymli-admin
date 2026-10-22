@@ -144,6 +144,13 @@ public sealed class SyncService
         if (t is null) return; // enrolled flag set, but no template (e.g. seeded data)
         var cipher = t.Str("cipher");
         if (cipher is null) return;
+        // A template made in simulation mode would only confuse the real reader's matching (and vice versa).
+        var format = t.Str("format");
+        if (format is not null && format != (_settings.Simulation ? "simulated" : "ansi-378-2004"))
+        {
+            Log.Warn($"Template for {m.Code} is in another format ({format}); re-enrol this member.");
+            return;
+        }
         if (t.Str("keyId") is { } kid && kid != _store.KeyId)
         {
             Log.Warn($"Template for {m.Code} was made with another key ({kid}); import that key or re-enrol.");

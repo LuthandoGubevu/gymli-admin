@@ -18,6 +18,8 @@ public sealed record EnrolProgress(string MemberName, int Step, int Total, strin
 public sealed class CheckinEngine
 {
     public const int EnrolScans = 4;
+    /// <summary>If 4 scans are not enough for the reader, up to this many are asked for.</summary>
+    public const int MaxEnrolScans = 8;
 
     private readonly IFingerprintReader _reader;
     private readonly ITurnstileRelay _relay;
@@ -197,8 +199,22 @@ public sealed class CheckinEngine
             await Sync.UpdateEnrolAsync(req.Id, "scanning", 0, "Place the finger flat on the scanner", ct);
             var captured = 0;
             var deadline = DateTimeOffset.UtcNow.AddMinutes(3);
-            while (captured < EnrolScans)
+            byte[]? template = null;
+            while (template is null)
             {
+                if (captured >= EnrolScans)
+                {
+                    // Enough scans to try. The reader may still want more (up to MaxEnrolScans).
+                    template = _reader.CreateTemplate(samples);
+                    if (template is not null) break;
+                    if (captured >= MaxEnrolScans)
+                    {
+                        await Sync.UpdateEnrolAsync(req.Id, "failed", 0, "The scans did not match. Start again.", ct);
+                        EnrolChanged?.Invoke(new EnrolProgress(name, 0, EnrolScans, "The scans did not match", false, true));
+                        return;
+                    }
+                    await Sync.UpdateEnrolAsync(req.Id, "scanning", captured, "One more scan: lift, then place the same finger flat", ct);
+                }
                 if (DateTimeOffset.UtcNow > deadline)
                 {
                     await Sync.UpdateEnrolAsync(req.Id, "failed", captured, "Took too long. Start again.", ct);
@@ -236,13 +252,6 @@ public sealed class CheckinEngine
                 await Sync.UpdateEnrolAsync(req.Id, "scanning", captured, captured < EnrolScans ? "Lift, then place the same finger flat on the scanner" : "Saving", ct);
             }
 
-            var template = _reader.CreateTemplate(samples);
-            if (template is null)
-            {
-                await Sync.UpdateEnrolAsync(req.Id, "failed", 0, "The scans did not match. Start again.", ct);
-                EnrolChanged?.Invoke(new EnrolProgress(name, 0, EnrolScans, "The scans did not match", false, true));
-                return;
-            }
             // Same finger already belongs to someone else?
             var other = _reader.Identify(new FingerSample(template), _store.Templates.Where(t => t.MemberId != req.MemberId).ToList());
             if (other is not null && !_settings.Simulation)

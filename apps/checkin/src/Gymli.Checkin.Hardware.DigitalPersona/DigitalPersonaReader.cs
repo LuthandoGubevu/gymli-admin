@@ -13,7 +13,8 @@ namespace Gymli.Checkin.Hardware.DigitalPersona;
 /// Privacy: the captured image (FID) is turned into a feature set (FMD) straight away
 /// and the image buffer is wiped. Images are never stored or sent.
 ///
-/// STATUS: written against the SDK headers; must be verified on the real reader (Week 3).
+/// STATUS: written against the SDK headers; first run on a real reader still to come.
+/// Logs every SDK error code (C:\ProgramData\Gymli\logs) so a failed first run can be fixed quickly.
 /// </summary>
 public sealed class DigitalPersonaReader : IFingerprintReader
 {
@@ -22,7 +23,11 @@ public sealed class DigitalPersonaReader : IFingerprintReader
     private readonly object _gate = new();
     private bool _initialised;
     private CancellationTokenSource? _watchCts;
-    private const uint Resolution = 500; // 4500 reader: 512 dpi native, 500 dpi output
+    /// <summary>Capture resolution: the first one the reader reports (the 4500 reports 500 dpi); 500 if it cannot say.</summary>
+    private uint _resolution = DefaultResolution;
+    private const uint DefaultResolution = 500;
+    /// <summary>After this many capture errors in a row the reader is closed and opened again.</summary>
+    private const int MaxCaptureErrors = 5;
 
     /// <summary>False-accept rate 1 in 100 000 — the SDK's recommended identification threshold.</summary>
     private const uint Threshold = Native.DPFJ_PROBABILITY_ONE / 100_000;
@@ -68,8 +73,9 @@ public sealed class DigitalPersonaReader : IFingerprintReader
                 var info = Marshal.PtrToStructure<Native.DPFPDD_DEV_INFO>(buf);
                 rc = Native.dpfpdd_open(info.name, out var dev);
                 if (rc != Native.DPFPDD_SUCCESS) { Log.Warn($"Reader found but could not open (0x{rc:X8})"); return; }
-                lock (_gate) { _dev = dev; _devName = info.descr.product_name; }
-                Log.Info($"Fingerprint reader connected: {info.descr.product_name}");
+                var res = ReadResolution(dev);
+                lock (_gate) { _dev = dev; _devName = info.descr.product_name; _resolution = res; }
+                Log.Info($"Fingerprint reader connected: {info.descr.product_name} ({res} dpi)");
                 ConnectionChanged?.Invoke(this, true);
             }
             finally
@@ -80,6 +86,36 @@ public sealed class DigitalPersonaReader : IFingerprintReader
         catch (DllNotFoundException ex)
         {
             Log.Error("DigitalPersona DLLs not found (dpfpdd.dll / dpfj.dll)", ex);
+        }
+    }
+
+    /// <summary>
+    /// Asks the reader which resolutions it supports (dpfpdd_get_device_capabilities) and uses the first.
+    /// DPFPDD_DEV_CAPS: size, 9 ints/flags, indicator_type, …, resolution_cnt at byte 44, resolutions[] from byte 48.
+    /// </summary>
+    private static uint ReadResolution(IntPtr dev)
+    {
+        const int bufSize = 256;
+        var buf = Marshal.AllocHGlobal(bufSize);
+        try
+        {
+            for (var i = 0; i < bufSize; i += 4) Marshal.WriteInt32(buf + i, 0);
+            Marshal.WriteInt32(buf, bufSize);
+            var rc = Native.dpfpdd_get_device_capabilities(dev, buf);
+            if (rc != Native.DPFPDD_SUCCESS) { Log.Warn($"Reader capabilities not available (0x{rc:X8}); using {DefaultResolution} dpi"); return DefaultResolution; }
+            var count = (uint)Marshal.ReadInt32(buf, 44);
+            var first = count is > 0 and <= 16 ? (uint)Marshal.ReadInt32(buf, 48) : 0;
+            if (first is >= 300 and <= 1200) return first;
+            Log.Warn($"Reader reported no usable resolution (count {count}, first {first}); using {DefaultResolution} dpi");
+            return DefaultResolution;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return DefaultResolution;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
         }
     }
 
@@ -100,13 +136,15 @@ public sealed class DigitalPersonaReader : IFingerprintReader
     private FingerSample Capture(CancellationToken ct)
     {
         var image = new byte[512 * 1024];
+        var errors = 0;
         try
         {
             while (true)
             {
                 ct.ThrowIfCancellationRequested();
                 IntPtr dev;
-                lock (_gate) dev = _dev;
+                uint resolution;
+                lock (_gate) { dev = _dev; resolution = _resolution; }
                 if (dev == IntPtr.Zero) { Thread.Sleep(300); continue; }
 
                 var param = new Native.DPFPDD_CAPTURE_PARAM
@@ -114,7 +152,7 @@ public sealed class DigitalPersonaReader : IFingerprintReader
                     size = (uint)Marshal.SizeOf<Native.DPFPDD_CAPTURE_PARAM>(),
                     image_fmt = Native.DPFPDD_IMG_FMT_ANSI381,
                     image_proc = Native.DPFPDD_IMG_PROC_DEFAULT,
-                    image_res = Resolution,
+                    image_res = resolution,
                 };
                 var result = new Native.DPFPDD_CAPTURE_RESULT { size = (uint)Marshal.SizeOf<Native.DPFPDD_CAPTURE_RESULT>() };
                 result.info.size = (uint)Marshal.SizeOf<Native.DPFPDD_IMAGE_INFO>();
@@ -128,9 +166,15 @@ public sealed class DigitalPersonaReader : IFingerprintReader
                 }
                 if (rc != Native.DPFPDD_SUCCESS)
                 {
-                    Lost($"capture error 0x{rc:X8}");
+                    // One error is often a busy or briefly disturbed reader: wait and try again. Only after
+                    // several in a row (e.g. unplugged) close it, so the watcher opens it again.
+                    errors++;
+                    Log.Warn($"Capture error 0x{rc:X8} ({errors} of {MaxCaptureErrors})");
+                    if (errors >= MaxCaptureErrors) { Lost($"capture error 0x{rc:X8}"); errors = 0; }
+                    else Thread.Sleep(500);
                     continue;
                 }
+                errors = 0;
                 if (result.success == 0 || result.quality != Native.DPFPDD_QUALITY_GOOD) continue; // timed out or poor scan: wait for the next finger
 
                 var fmd = new byte[Native.MAX_FMD_SIZE];
@@ -158,14 +202,21 @@ public sealed class DigitalPersonaReader : IFingerprintReader
             {
                 rc = Native.dpfj_add_to_enrollment(Native.DPFJ_FMD_ANSI_378_2004, s.Fmd, (uint)s.Fmd.Length, 0);
                 if (rc == Native.DPFJ_SUCCESS) { ready = true; break; }
-                if (rc != Native.DPFJ_E_MORE_DATA) return null;
+                if (rc != Native.DPFJ_E_MORE_DATA) { Log.Warn($"Enrolment scan rejected (0x{rc:X8})"); return null; }
             }
-            if (!ready) return null; // the scans were not similar enough
-            uint size = 0;
-            Native.dpfj_create_enrollment_fmd(null, ref size);
+            // Not enough yet: the engine asks for another scan (up to 8) and calls this again.
+            if (!ready) return null;
+            // Room for any enrolment template; if the SDK still wants more, it says how much.
+            var size = (uint)Native.MAX_ENROLL_FMD_SIZE;
             var fmd = new byte[size];
             rc = Native.dpfj_create_enrollment_fmd(fmd, ref size);
-            return rc == Native.DPFJ_SUCCESS ? fmd[..(int)size] : null;
+            if (rc == Native.DPFJ_E_MORE_DATA && size > fmd.Length)
+            {
+                fmd = new byte[size];
+                rc = Native.dpfj_create_enrollment_fmd(fmd, ref size);
+            }
+            if (rc != Native.DPFJ_SUCCESS) { Log.Warn($"Enrolment template not created (0x{rc:X8})"); return null; }
+            return fmd[..(int)size];
         }
         finally
         {
@@ -224,6 +275,8 @@ internal static class Native
     public const uint DPFJ_FMD_ANSI_378_2004 = 0x001B0001;
     public const uint DPFJ_PROBABILITY_ONE = 0x7FFFFFFF;
     public const int MAX_FMD_SIZE = 1562 * 2;
+    /// <summary>Generous buffer for the finished enrolment template (several views).</summary>
+    public const int MAX_ENROLL_FMD_SIZE = 16 * 1024;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct DPFPDD_HW_DESCR
@@ -267,6 +320,8 @@ internal static class Native
     [DllImport("dpfpdd")] public static extern int dpfpdd_query_devices(ref uint dev_cnt, IntPtr dev_infos);
     [DllImport("dpfpdd", CharSet = CharSet.Ansi)] public static extern int dpfpdd_open(string dev_name, out IntPtr pdev);
     [DllImport("dpfpdd")] public static extern int dpfpdd_close(IntPtr dev);
+    /// <summary>dev_caps: DPFPDD_DEV_CAPS buffer whose first field (size) is set to the buffer size.</summary>
+    [DllImport("dpfpdd")] public static extern int dpfpdd_get_device_capabilities(IntPtr dev, IntPtr dev_caps);
     [DllImport("dpfpdd")]
     public static extern int dpfpdd_capture(IntPtr dev, ref DPFPDD_CAPTURE_PARAM capture_parm, uint timeout_cnt,
         ref DPFPDD_CAPTURE_RESULT capture_result, ref uint image_size, [Out] byte[] image_data);
