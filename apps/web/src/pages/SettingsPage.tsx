@@ -299,7 +299,7 @@ function DeviceStatus({ device }: { device: Device }) {
   const sim = device.mode === 'simulation'
   return (
     <div className="mb-8 ml-56 max-md:ml-0">
-      <StatusLine ok={device.readerConnected} label={device.readerConnected ? 'Fingerprint reader connected' : 'Fingerprint reader not found'} detail={sim ? 'Simulation mode' : 'DigitalPersona 4500'} />
+      <StatusLine ok={device.readerConnected} label={device.readerConnected ? 'Fingerprint reader connected' : 'Fingerprint reader not found'} detail={sim ? 'Simulation mode' : device.reader || 'Fingerprint reader'} />
       <StatusLine ok={device.relayConnected} label={device.relayConnected ? 'Turnstile relay connected' : 'Turnstile relay not found'} detail={sim ? 'Simulated pulses' : 'USB relay'} relay />
       <StatusLine ok={device.pendingLogs === 0} label={device.pendingLogs === 0 ? 'Door log up to date' : `${device.pendingLogs} scans waiting to upload`} detail={device.appVersion ? `App ${device.appVersion}` : ''} />
     </div>

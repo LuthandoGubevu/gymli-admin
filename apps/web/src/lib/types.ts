@@ -142,6 +142,8 @@ export interface Device {
   relayConnected: boolean
   pendingLogs: number
   appVersion: string
+  /** Reader make reported by the PC, e.g. "ZKTeco ZK9500" (empty from older versions). */
+  reader: string
 }
 
 export type EnrolStatus = 'pending' | 'scanning' | 'done' | 'failed' | 'cancelled'

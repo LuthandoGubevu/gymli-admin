@@ -300,7 +300,9 @@ public sealed class SyncService
             ["relayConnected"] = Fs.Bool(relay),
             ["pendingLogs"] = Fs.Int(_store.PendingCount),
             ["members"] = Fs.Int(_store.MemberCount),
-            ["appVersion"] = Fs.Str(typeof(SyncService).Assembly.GetName().Version?.ToString(3) ?? "1.0.0"),
+            ["reader"] = Fs.Str(_settings.DigitalPersona ? "DigitalPersona 4500" : "ZKTeco ZK9500"),
+            // The app's version (Gymli.Checkin.exe), not this library's.
+            ["appVersion"] = Fs.Str((System.Reflection.Assembly.GetEntryAssembly() ?? typeof(SyncService).Assembly).GetName().Version?.ToString(3) ?? ""),
         };
         await _fs.CommitAsync(new JsonArray(new JsonObject { ["update"] = new JsonObject { ["name"] = _fs.DocName($"devices/{_fs.Uid}"), ["fields"] = fields } }), ct);
         _lastHeartbeat = DateTimeOffset.UtcNow;

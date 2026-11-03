@@ -55,6 +55,7 @@ export function toDevice(id: string, d: DocumentData): Device {
     relayConnected: !!d.relayConnected,
     pendingLogs: d.pendingLogs ?? 0,
     appVersion: d.appVersion ?? '',
+    reader: d.reader ?? '',
   }
 }
 
