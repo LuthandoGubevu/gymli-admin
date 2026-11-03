@@ -7,7 +7,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>Gymli.Checkin</AssemblyName>
     <RootNamespace>Gymli.Checkin.App</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>Assets/gymli.ico</ApplicationIcon>
