@@ -1,4 +1,4 @@
-<#
+﻿<#
   Gymli Check-in — install on the reception PC (run in PowerShell as Administrator from the published folder).
 
   What it does:

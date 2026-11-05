@@ -1,4 +1,4 @@
-<#
+﻿<#
   Gymli Check-in watchdog: keeps the check-in program running on the reception PC.
   If it is closed (Task Manager, Ctrl+Shift+Q) or crashes, it is started again within 5 seconds.
   Started by Task Scheduler ("Gymli Check-in watchdog") at logon. To stop Gymli for maintenance,
