@@ -90,6 +90,34 @@ On the reception PC (Windows 10/11, its own local user that signs in automatical
 
 Updating: run `publish.sh`, copy the folder, run `install.ps1` again (settings, data and key are kept).
 
+## 7. Database backups (once)
+
+Firestore's own scheduled backups: no code, no server. Needs the Blaze (pay-as-you-go) plan; at this size
+the backups cost cents a month. Run in **Google Cloud Shell** (console.cloud.google.com → the `>_` icon,
+top right), signed in as a project owner:
+
+```bash
+gcloud config set project fundanii-ai
+# Every day, kept 7 days (the most Firestore allows for daily backups)
+gcloud firestore backups schedules create --database=gymli-admin --recurrence=daily --retention=7d
+# Every Sunday, kept 14 weeks (the most for weekly backups)
+gcloud firestore backups schedules create --database=gymli-admin --recurrence=weekly --day-of-week=SUN --retention=14w
+# Check: two schedules listed
+gcloud firestore backups schedules list --database=gymli-admin
+```
+The first backup appears within 24 hours: `gcloud firestore backups list --location=africa-south1`.
+
+**Restoring** never overwrites the live data: it makes a **new** database from a backup, which you check
+first and only then switch to (or copy records back from).
+```bash
+gcloud firestore backups list --location=africa-south1          # pick a backup's name
+gcloud firestore databases restore --source-backup=projects/fundanii-ai/locations/africa-south1/backups/BACKUP_ID --destination-database=gymli-restore
+```
+To switch over: set `VITE_FIREBASE_DATABASE_ID` (Netlify) and `FirebaseDatabaseId` (check-in PCs) to the
+restored database, deploy the rules and indexes to it (`firebase deploy --only firestore`), then rebuild.
+Every 3 months, test a restore into `gymli-restore` and delete it afterwards
+(`gcloud firestore databases delete --database=gymli-restore`).
+
 ## Turnstile wiring
 
 Relay **COM + NO** → turnstile controller **entry / "open A"** dry-contact input (check the controller manual; most tripod controllers take a momentary closure). One pulse = one entry. Do not wire to the motor/solenoid directly. Exit stays free as the turnstile is set up today.
