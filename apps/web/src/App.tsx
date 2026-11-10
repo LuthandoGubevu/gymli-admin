@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { BranchGate } from './components/BranchGate'
 import { AppShell } from './components/layout/AppShell'
 import { MemberFormModal } from './components/member/MemberFormModal'
+import { PaymentNotice } from './components/PaymentNotice'
 import { Spinner } from './components/ui'
 import { ToastProvider } from './components/ui/Toast'
 import { AuthProvider, GymDataProvider, useAuth } from './data/store'
@@ -48,6 +49,7 @@ function Gate() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BranchGate>
+        <PaymentNotice />
       </AppShell>
     </GymDataProvider>
   )
