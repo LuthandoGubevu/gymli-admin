@@ -5,7 +5,7 @@ import { diffDays, parseDate, toDayNumber, type LocalDate } from './dates'
  * `everyHours` after it is closed. Switch it off with `active: false` and push to main.
  */
 export const PAYMENT_NOTICE = {
-  active: true,
+  active: false, // INV-2026-004 paid (12 Nov 2026)
   id: 'inv-2026-004',
   invoice: 'INV-2026-004',
   amount: 'R3 500.00',
