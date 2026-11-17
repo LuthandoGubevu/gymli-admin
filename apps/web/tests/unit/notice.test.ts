@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatLong, noticeText, PAYMENT_NOTICE, shouldShow } from '../../src/lib/notice'
+import { formatLong, isLocked, lockedBy, lockText, noticeText, PAYMENT_NOTICE, shouldShow, SYSTEM_LOCK } from '../../src/lib/notice'
 import { todayAtGym } from '../../src/lib/dates'
 
 const H = 3_600_000
@@ -26,6 +26,30 @@ describe('payment notice', () => {
       label: 'Overdue',
       text: 'Invoice INV-2026-004 is overdue. Payment was due by Sunday 15 November 2026. The Gymli system will be stopped.',
     })
+  })
+
+  it('locks everyone except the exempt ApexDev logins', () => {
+    // The two real exempt logins, however typed
+    expect(isLocked('lgubevu@gmail.com')).toBe(false)
+    expect(isLocked('  LGubevu@Gmail.com ')).toBe(false)
+    expect(isLocked('mhlangasphamandla58@gmail.com')).toBe(false)
+    // Everyone else at the gym
+    expect(isLocked('frontdesk@bodytone.co.za')).toBe(true)
+    expect(isLocked('tidoteez@gmail.com')).toBe(true)
+    // A login with no email is locked, not let through
+    expect(isLocked(null)).toBe(true)
+    expect(isLocked('')).toBe(true)
+  })
+
+  it('locks no one when it is switched off', () => {
+    const off = { active: false, exemptEmails: SYSTEM_LOCK.exemptEmails }
+    expect(lockedBy('anyone@gym.co.za', off)).toBe(false)
+    expect(lockedBy(null, off)).toBe(false)
+  })
+
+  it('the locked message names the invoice and says paused', () => {
+    expect(lockText()).toContain('INV-2026-004')
+    expect(lockText()).toContain('paused')
   })
 
   it('turns overdue at midnight in Johannesburg, not UTC', () => {

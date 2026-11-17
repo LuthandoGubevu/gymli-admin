@@ -29,6 +29,35 @@ export function shouldShow(now: number, lastSeenAt: number | null, everyHours: n
   return lastSeenAt === null || now - lastSeenAt >= everyHours * HOUR_MS
 }
 
+/**
+ * Suspends the whole website for the gym's staff while an invoice is unpaid. Exempt logins (ApexDev)
+ * keep full access so they can manage it and lift the lock. Switch it off with `active: false` and
+ * push to main. The check-in PC and the gate are a separate program and are not affected.
+ */
+export const SYSTEM_LOCK = {
+  active: true,
+  exemptEmails: ['lgubevu@gmail.com', 'mhlangasphamandla58@gmail.com'],
+}
+
+const norm = (e: string) => e.trim().toLowerCase()
+
+/** Pure form, used by isLocked and the tests. */
+export function lockedBy(email: string | null | undefined, lock: { active: boolean; exemptEmails: readonly string[] }): boolean {
+  if (!lock.active) return false
+  if (!email) return true // no email on the login: lock it
+  return !lock.exemptEmails.map(norm).includes(norm(email))
+}
+
+/** True when this signed-in email should see the locked ("service paused") screen. */
+export function isLocked(email: string | null | undefined): boolean {
+  return lockedBy(email, SYSTEM_LOCK)
+}
+
+/** The sentence on the locked screen (present tense: it is already paused). */
+export function lockText(invoice: string = PAYMENT_NOTICE.invoice): string {
+  return `Invoice ${invoice} has not been paid. The Gymli system has been paused. Access will be restored as soon as payment is received.`
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 

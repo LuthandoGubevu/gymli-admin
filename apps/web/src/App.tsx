@@ -3,9 +3,12 @@ import { BranchGate } from './components/BranchGate'
 import { AppShell } from './components/layout/AppShell'
 import { MemberFormModal } from './components/member/MemberFormModal'
 import { PaymentNotice } from './components/PaymentNotice'
+import { SystemLock } from './components/SystemLock'
 import { Spinner } from './components/ui'
 import { ToastProvider } from './components/ui/Toast'
 import { AuthProvider, GymDataProvider, useAuth } from './data/store'
+import { useEmulator } from './lib/firebase'
+import { isLocked } from './lib/notice'
 import { AccountsPage } from './pages/AccountsPage'
 import { DoorLogPage } from './pages/DoorLogPage'
 import { LoginPage } from './pages/LoginPage'
@@ -26,6 +29,8 @@ function AddMemberRoute() {
 
 function Gate() {
   const { loading, user, staff, noAccess } = useAuth()
+  // Screenshot the lock without a login: /?lock=preview
+  if (new URLSearchParams(window.location.search).get('lock') === 'preview') return <SystemLock />
   if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center bg-app">
@@ -33,6 +38,8 @@ function Gate() {
       </div>
     )
   if (!user || !staff) return <LoginPage noAccess={!!user && noAccess} />
+  // Suspended for non-payment: ApexDev logins and the emulator (tests) are exempt.
+  if (!useEmulator && isLocked(staff.email)) return <SystemLock />
   return (
     <GymDataProvider>
       <AppShell>
