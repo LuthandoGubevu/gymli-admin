@@ -28,17 +28,20 @@ describe('payment notice', () => {
     })
   })
 
-  it('locks everyone except the exempt ApexDev logins', () => {
-    // The two real exempt logins, however typed
-    expect(isLocked('lgubevu@gmail.com')).toBe(false)
-    expect(isLocked('  LGubevu@Gmail.com ')).toBe(false)
-    expect(isLocked('mhlangasphamandla58@gmail.com')).toBe(false)
-    // Everyone else at the gym
+  it('with no exemptions, every login is locked', () => {
+    expect(SYSTEM_LOCK.exemptEmails).toEqual([])
+    expect(isLocked('lgubevu@gmail.com')).toBe(true)
+    expect(isLocked('mhlangasphamandla58@gmail.com')).toBe(true)
     expect(isLocked('frontdesk@bodytone.co.za')).toBe(true)
-    expect(isLocked('tidoteez@gmail.com')).toBe(true)
-    // A login with no email is locked, not let through
     expect(isLocked(null)).toBe(true)
     expect(isLocked('')).toBe(true)
+  })
+
+  it('an exempt list lets those emails through (case-insensitive) and locks the rest', () => {
+    const lock = { active: true, exemptEmails: ['owner@apexdev.co.za'] }
+    expect(lockedBy('  Owner@ApexDev.co.za ', lock)).toBe(false)
+    expect(lockedBy('someone@gym.co.za', lock)).toBe(true)
+    expect(lockedBy(null, lock)).toBe(true)
   })
 
   it('locks no one when it is switched off', () => {

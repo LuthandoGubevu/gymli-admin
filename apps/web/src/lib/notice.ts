@@ -36,7 +36,8 @@ export function shouldShow(now: number, lastSeenAt: number | null, everyHours: n
  */
 export const SYSTEM_LOCK = {
   active: true,
-  exemptEmails: ['lgubevu@gmail.com', 'mhlangasphamandla58@gmail.com'],
+  // No exemptions: every login is locked (ApexDev lifts it with a push, not a login).
+  exemptEmails: [] as string[],
 }
 
 const norm = (e: string) => e.trim().toLowerCase()
